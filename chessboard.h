@@ -63,7 +63,7 @@ enum colors {
 #define BLACK_QUEEN 13
 #define BLACK_KING 14
 
-typedef struct {
+typedef struct square {
     uint8_t file;
     uint8_t rank;
 } square;
@@ -87,9 +87,9 @@ void init_board(board *board);
 void print_board(board *board, short turn);
 uint64_t get_bitboard(int file, int rank);
 void rank_and_file_from_bitboard(uint64_t bitboard, int *file, int *rank);
-void white_board(board *board);
-void black_board(board *board);
+uint64_t white_board(board *b);
+uint64_t black_board(board *b);
 
 /* square table functions */
 void init_square_table(board *board);
-void update_square_table(int file, int rank, uint8_t piece, board *board);
+void update_square_table(int file, int rank, uint8_t piece, board *b) ;

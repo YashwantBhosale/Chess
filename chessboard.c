@@ -19,6 +19,50 @@ uint64_t get_bitboard(int file, int rank){
     return (bitboard << index);
 }
 
+/* Get compiled postion of white or black pieces */
+uint64_t get_type_board(pieces *type) {
+	uint64_t type_board = 0ULL;
+    int len = 0;
+	for (int i = 0; i < 8; i++) {
+		type_board |= type->pawns[i];
+	}
+
+    // len = sizeof(type->knights[0])/sizeof(uint64_t);
+    len = 2;
+    for(int i = 0; i < len; i++){
+        type_board |= type->knights[i];
+    }
+
+    // len = sizeof(type->bishops[0])/sizeof(uint64_t);
+    len = 2;
+    for(int i = 0; i < len; i++){
+        type_board |= type->bishops[i];
+    }
+
+
+    // len = sizeof(type->rooks)/sizeof(uint64_t);
+    len = 2;
+    for(int i = 0; i < len; i++){
+        type_board |= type->rooks[i];
+    }
+
+    // len = sizeof(type->queen)/sizeof(uint64_t);
+    len = 1;
+    for(int i = 0; i < len; i++){
+        type_board |= type->queen[i];
+    }
+
+    type_board |= type->king;
+	return type_board;
+}
+
+uint64_t white_board(board *b) {
+    return get_type_board(b->white);
+}
+uint64_t black_board(board *b) {
+    return get_type_board(b->black);
+}
+
 
 /* square table functions */
 void update_square_table(int file, int rank, uint8_t piece, board *b) {
@@ -141,7 +185,7 @@ void print_board(board *b, short turn) {
     
             /* If piece is present on the square then print the piece*/
             if(piece)
-                wprintf(L" %lc |", piece & 8 ? black_pieces[(piece & 7)-1] : white_pieces[(piece & 7)-1]); //  
+                wprintf(L" %lc |", piece & 8 ? black_pieces[(piece & 7)-1] : white_pieces[(piece & 7)-1]);
 
             /* If square is empty then denote it by printing _ */
             else
