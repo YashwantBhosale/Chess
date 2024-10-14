@@ -35,7 +35,7 @@ void new_game(board *b) {
     while(1){
   
         // update_attack_tables(b);
-        //clrscr();
+        clrscr();
         if(b->attack_tables[WHITE] == 0ULL){
             wprintf(L"%s is in checkmate 1\n", "White");
             break;
@@ -54,7 +54,7 @@ void new_game(board *b) {
         square src = read_square();
         printf("Enter the destination square: ");
         square dest = read_square();
-        status = make_move(src, dest, b);
+        status = make_move(src, dest, turn, b);
 
         switch (status){
         case NORMAL_MOVE:
@@ -90,11 +90,15 @@ void new_game(board *b) {
 
         // view_square_table(b);  
         if(b->attack_tables[WHITE] == 0ULL){
+            clrscr();
+            print_board(b, turn);
             wprintf(L"%s is in checkmate 2\n", "White");
             break;
         }
 
         else if(b->attack_tables[BLACK] == 0ULL){
+            clrscr();
+            print_board(b, turn);
             wprintf(L"%s is in checkmate\n", "Black");
             break;
         }

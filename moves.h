@@ -13,4 +13,4 @@
 
 uint64_t generate_lookup_table(uint64_t piece_bitboard, uint8_t piece_id, board *b);
 void update_attack_tables(board *b, short turn);
-short make_move(square src, square dest, board *board);
+short make_move(square src, square dest, short turn, board *board);

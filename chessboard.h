@@ -82,6 +82,8 @@ typedef struct pieces {
 typedef struct {
     pieces *white, *black;
     uint8_t square_table[8][8];
+    short en_pass_pawn;
+    uint64_t en_passant;
 
     uint64_t attack_tables[2];
 } board;

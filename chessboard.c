@@ -191,8 +191,8 @@ void set_pieces(board *b) {
 void print_board(board *b, short turn) {
     // wchar_t white_pieces[] = {L'K', L'Q', L'R', L'B', L'N', L'P'};
 	// wchar_t black_pieces[] = {L'k', L'q', L'r', L'b', L'n', L'p'};
-	wchar_t white_pieces[] = {L'♙', L'♘', L'♗', L'♖', L'♕', L'♔',};
-	wchar_t black_pieces[] = {L'♟', L'♞', L'♝', L'♜', L'♛', L'♚',};
+	wchar_t black_pieces[] = {L'♙', L'♘', L'♗', L'♖', L'♕', L'♔',};
+	wchar_t white_pieces[] = {L'♟', L'♞', L'♝', L'♜', L'♛', L'♚',};
 
     /*
     WHY & 7? : The piece is stored in the square table as a 8-bit number. The lower 3 bits represent the piece type.

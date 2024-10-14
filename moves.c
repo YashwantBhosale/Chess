@@ -232,6 +232,53 @@ uint64_t move_south_west(uint64_t move, short color) {
     return new_move;
 }
 
+/*
+// function to generate en passant move
+uint64_t en_passant(uint64_t piece_bitboard, short color) {
+    uint64_t move = 0ULL, pb, ob;
+    pb = color==WHITE ? white_board(b) : black_board(b);
+    ob = color==WHITE ? white_board(b) : black_board(b);
+
+    switch(color) {
+        case WHITE: {
+            if(piece_bitboard & rankmask(5) == 0) {
+                return 0ULL;
+            }
+            int piece_rank, piece_file, diff;
+            Move last_move = peek(moves);
+
+            rank_and_file_from_bitboard(piece_bitboard, &piece_rank, &piece_file);
+            diff = last_move.src.file - piece_file;
+            
+            // Confirm that last moved piece is a pawn
+            if(last_move.piece != PAWN)
+                return 0ULL;
+
+
+            // Enpassant can only be performed on adjacent files
+            // Pending h file and a file case 
+            if(diff != 1 || diff != -1)
+                return 0ULL;
+            
+            // make sure that pawn moved from rank 7 to rank 5 in the last move
+            if(last_move.src.rank == 7 && last_move.dest.rank == 5) {
+                move = move_north_west(pawn, color);
+                move = validate_move(move, pb|ob, 0ULL);
+                b->en_passant = move;
+                b->en_pas_pawn = 
+            
+
+            }
+
+        }
+
+
+    }
+    
+}
+*/
+
+
 /* piece wise lookup functions */
 uint64_t pawn_lookup(uint64_t pawn, short color, board *b) {
 	/*
@@ -541,38 +588,25 @@ uint64_t generate_lookup_table(uint64_t piece_bitboard, uint8_t piece_id, board 
 	type = piece_id & 7;
 	color = (piece_id & 8) ? BLACK : WHITE;
     
-    // wprintf(L"============================================================\n");
-    // wprintf(L"This is lookup table for %s\n", color ? "BLACK" : "WHITE");
+
 	switch (type) {
 		case PAWN:
 			lookup_table = pawn_lookup(piece_bitboard, color, b);
-            // wprintf(L"pawn lookup table = \n");
-            // print_legal_moves(lookup_table);
 			break;
 		case KNIGHT:
-			lookup_table = knight_lookup(piece_bitboard, color, b);
-            // wprintf(L"knight lookup table = %llu\n", lookup_table); 
-            // print_legal_moves(lookup_table);          
+			lookup_table = knight_lookup(piece_bitboard, color, b);      
 			break;
 		case BISHOP:
 			lookup_table = bishop_lookup(piece_bitboard, color, b);
-            // wprintf(L"bishop lookup table = %llu\n", lookup_table);
-            // print_legal_moves(lookup_table);
 			break;
 		case ROOK:
 			lookup_table = rook_lookup(piece_bitboard, color, b);
-            // wprintf(L"rook lookup table = %llu\n", lookup_table);
-            // print_legal_moves(lookup_table);
 			break;
 		case QUEEN:
 			lookup_table = queen_lookup(piece_bitboard, color, b);
-            // wprintf(L"queen lookup table = %llu\n", lookup_table);
-            // print_legal_moves(lookup_table);
 			break;
 		case KING:
 			lookup_table = king_lookup(piece_bitboard, color, b);
-            // wprintf(L"king lookup table = %llu\n", lookup_table);
-            // print_legal_moves(lookup_table);
 			break;
 
 		default:
@@ -690,52 +724,32 @@ void update_attack_tables(board *b, short turn) {
 		b->attack_tables[BLACK] = generate_attack_tables_for_color(BLACK, b);
 		b->attack_tables[WHITE] = generate_attack_tables_for_color(WHITE, b);
 	}
-	/*
-	uint64_t old_white_at, old_black_at, new_white_at, new_black_at;
-	old_white_at = b->attack_tables[WHITE];
-	old_black_at = b->attack_tables[BLACK];
-
-	wprintf(L"is white in check? %d\n", in_check(WHITE, b));
-	wprintf(L"is black in check? %d\n", in_check(BLACK, b));
-
-	wprintf(L"Attack tables updated: \n");
-	wprintf(L"white : ");
-	new_white_at = generate_attack_tables_for_color(WHITE, b);
-	print_legal_moves(new_white_at);
-
-	wprintf(L"black : ");
-	new_black_at = generate_attack_tables_for_color(BLACK, b);
-	print_legal_moves(new_black_at);
-
-	b->attack_tables[WHITE] = new_white_at;
-	b->attack_tables[BLACK] = new_black_at;
-	wprintf(L"============================================================\n");	
-	*/
 }
 
 
 /* Function to make a move */
-short make_move(square src, square dest, board *board) {
-	if (board->square_table[src.file - 1][src.rank - 1] == EMPTY_SQUARE) {
-		wprintf(L"Function returned because source square is empty\n");
+short make_move(square src, square dest, short turn, board *board) {
+	uint8_t piece, dest_piece;
+	piece = board->square_table[src.file - 1][src.rank - 1];
+	short piece_color = piece & 8 ? BLACK : WHITE;
+	if(piece_color != turn)
+		return INVALID_MOVE;
+
+	if (piece == EMPTY_SQUARE) {
 		return INVALID_MOVE;
 	}
 
 	if (board->attack_tables[WHITE] == 0ULL || board->attack_tables[BLACK] == 0ULL) {
-		wprintf(L"Function returned from make move\n");
 		return CHECKMATE_MOVE;
 	}
 
 	uint64_t piece_bitboard, move, legal_moves, *piece_ptr, *dest_piece_ptr;  // lookup_table,
-	uint8_t piece, dest_piece;
 	short status, color;
 	status = INVALID_MOVE;
 
-	piece = board->square_table[src.file - 1][src.rank - 1];
 	piece_ptr = get_pointer_to_piece(piece, board);
 
 	piece_bitboard = get_bitboard(src.file, src.rank);
-	// lookup_table = generate_lookup_table(piece_bitboard, piece, board);
 	legal_moves = generate_legal_moves(piece_bitboard, piece, board);
 
 	move = get_bitboard(dest.file, dest.rank);
@@ -756,15 +770,10 @@ short make_move(square src, square dest, board *board) {
 		push(&moves, m);
 
 		color = piece & 8 ? BLACK : WHITE;
-		wprintf(L"Color in make move: %d\n", color);
 		if (in_check((color ? WHITE : BLACK), board)) {
 			status = CHECK_MOVE;
 		}
 
-		// if(legal_moves == 0ULL) {
-		//     status = in_check(!color, board) ? CHECKMATE_MOVE : STALEMATE_MOVE;
-		// }
-		// return status;
 	} else {
 		status = INVALID_MOVE;
 	}
