@@ -18,6 +18,8 @@ enum colors {
     BLACK = 1
 };
 
+
+
 #define EMPTY_SQUARE 0
 // White pieces
 #define WHITE_PAWN_1 1
@@ -80,7 +82,13 @@ typedef struct pieces {
 typedef struct {
     pieces *white, *black;
     uint8_t square_table[8][8];
+
+    uint64_t attack_tables[2];
 } board;
+
+/* Global helper functions */
+void rank_and_file_from_bitboard(uint64_t bitboard, int *file, int *rank);
+square get_square(uint64_t bitboard);
 
 /* chess board functions*/
 void init_board(board *board);
@@ -89,7 +97,9 @@ uint64_t get_bitboard(int file, int rank);
 void rank_and_file_from_bitboard(uint64_t bitboard, int *file, int *rank);
 uint64_t white_board(board *b);
 uint64_t black_board(board *b);
+void print_legal_moves(uint64_t legal_moves);
 
 /* square table functions */
 void init_square_table(board *board);
 void update_square_table(int file, int rank, uint8_t piece, board *b) ;
+void view_square_table(board *b);
