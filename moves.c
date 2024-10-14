@@ -232,51 +232,146 @@ uint64_t move_south_west(uint64_t move, short color) {
     return new_move;
 }
 
-/*
-// function to generate en passant move
-uint64_t en_passant(uint64_t piece_bitboard, short color) {
+bool simulate_en_passant(square src, square dest, board *b){
+	uint8_t piece_id, captured_piece_id;
+    uint64_t *piece, *captured_piece, dest_bitboard, old_white_at, old_black_at;
+    short color;
+    bool is_valid_move = false;
+
+	piece_id = b->square_table[src.file-1][src.rank-1];
+	captured_piece_id = b->square_table[dest.file-1][src.rank-1];
+	color = piece_id & 8 ? BLACK : WHITE;
+
+	old_black_at = b->attack_tables[BLACK];
+	old_white_at = b->attack_tables[WHITE];
+	dest_bitboard = get_bitboard(dest.file, dest.rank);
+
+	piece = get_pointer_to_piece(piece_id, b);
+	captured_piece = get_pointer_to_piece(captured_piece_id, b);
+
+	if(!piece || !captured_piece)
+		return false;
+
+	/* Make the move on the board */
+	*piece = dest_bitboard;
+	update_square_table(dest.file, dest.rank, piece_id, b);
+
+	*captured_piece = 0ULL;
+	update_square_table(dest.file, src.rank, EMPTY_SQUARE, b); // remove the captured pawn
+	update_square_table(src.file, src.rank, EMPTY_SQUARE, b); // remove the current pawn
+
+	b->attack_tables[color == WHITE ? BLACK : WHITE] |= dest_bitboard;
+	b->attack_tables[color] &= ~dest_bitboard;
+
+	Move m = {src, dest, piece_id, captured_piece_id, 0};
+	push(&moves, m);
+
+	/* Check if this moves puts players king in check */
+	if(!in_check(color, b)){
+		is_valid_move = true;
+	}
+
+	/* Undo the move */
+	*piece = get_bitboard(src.file, src.rank);
+	update_square_table(src.file, src.rank, piece_id, b);
+
+	*captured_piece = get_bitboard(dest.file, src.rank);
+	update_square_table(dest.file, src.rank, captured_piece_id, b);
+
+	update_square_table(dest.file, dest.rank, EMPTY_SQUARE, b);
+
+	/* Restore the attack tables */
+	b->attack_tables[WHITE] = old_white_at;
+	b->attack_tables[BLACK] = old_black_at;
+
+	/* Pop the move stack */
+	pop(&moves);
+
+	return is_valid_move;
+}
+
+uint64_t en_passant(uint64_t pawn, short color, board *b) {
     uint64_t move = 0ULL, pb, ob;
     pb = color==WHITE ? white_board(b) : black_board(b);
     ob = color==WHITE ? white_board(b) : black_board(b);
 
+	// Check if last move was a pawn move
+	Move last_move = peek(moves);
+	if((last_move.piece & 7) != PAWN)
+		return 0ULL;
+
+	square current;
+	current = get_square(pawn);
+	int rank = current.rank, file = current.file;
+	
+	// Check if last move was made on adjacent file, to handle : enpassant on A and H file
+	short diff = last_move.src.file - file;
+	if(diff != 1 && diff != -1)
+		return 0ULL;
+
     switch(color) {
         case WHITE: {
-            if(piece_bitboard & rankmask(5) == 0) {
-                return 0ULL;
-            }
-            int piece_rank, piece_file, diff;
-            Move last_move = peek(moves);
-
-            rank_and_file_from_bitboard(piece_bitboard, &piece_rank, &piece_file);
-            diff = last_move.src.file - piece_file;
-            
-            // Confirm that last moved piece is a pawn
-            if(last_move.piece != PAWN)
-                return 0ULL;
+            /* IDEA
+             * 0. Check if current pawn is on rank 5.
+             * 1. check if last move was a pawn move.
+             * 2. check if last move was performed on a file which is adjacent to the given pawn.
+             * 3. check if last move was from rank 7 -> rank 5.
+             * 4. generate combined lookup table to move north-east and north-west (Confirming it is not on A-file or H-file).
+             * 5. mark the bitboard of the possible enpassant move in board structure.
+             * 6. mark the id of the piece about to be captured in board structure.
+             * *** MAKE SURE TO RESET THESE IF THE MOVE BEING PERFORMED IS NOT THE ENPASSANT
+             * */
 
 
-            // Enpassant can only be performed on adjacent files
-            // Pending h file and a file case 
-            if(diff != 1 || diff != -1)
-                return 0ULL;
-            
-            // make sure that pawn moved from rank 7 to rank 5 in the last move
-            if(last_move.src.rank == 7 && last_move.dest.rank == 5) {
-                move = move_north_west(pawn, color);
-                move = validate_move(move, pb|ob, 0ULL);
-                b->en_passant = move;
-                b->en_pas_pawn = 
-            
+			// White pawn should be on rank 5 in order to perform enpassant
+			if(pawn & rankmask(5) != 0)
+				return 0ULL;
 
-            }
+			// Check if last move was made from 7 to 5
+			if(last_move.src.rank != 7 || last_move.dest.rank != 5)
+				 return 0ULL;
 
+			square src = {file, 5};
+			move = get_bitboard(last_move.src.file, 6);
+			if(simulate_en_passant(src, get_square(move), b)){
+				b->en_passant = move;
+				b->en_pass_pawn = last_move.piece;
+			}
+            break;
         }
+		case BLACK: {
+			/* IDEA
+			 * 0. Check if current pawn is on rank 4.
+			 * 1. check if last move was a pawn move.
+			 * 2. check if last move was performed on a file which is adjacent to the given pawn.
+			 * 3. check if last move was from rank 2 -> rank 4.
+			 * 4. generate combined lookup table to move south-east and south-west (Confirming it is not on A-file or H-file).
+			 * 5. mark the bitboard of the possible enpassant move in board structure.
+			 * 6. mark the id of the piece about to be captured in board structure.
+			 * *** MAKE SURE TO RESET THESE IF THE MOVE BEING PERFORMED IS NOT THE ENPASSANT
+			 * */
 
+			// Black pawn should be on rank 4 in order to perform enpassant
+			if(pawn & rankmask(4) != 0)
+				return 0ULL;
+	
+			// Check if last move was made from 2 to 4
+			if(last_move.src.rank != 2 || last_move.dest.rank != 4)
+				return 0ULL;
 
+			square src = {file, 4};
+			move = get_bitboard(last_move.src.file, 3);
+			if(simulate_en_passant(src, get_square(move), b)){
+				b->en_passant = move;
+				b->en_pass_pawn = last_move.piece;
+			}
+			break;
+		}
+		default:
+			break;
     }
-    
+    return move;
 }
-*/
 
 
 /* piece wise lookup functions */
@@ -325,6 +420,9 @@ uint64_t pawn_lookup(uint64_t pawn, short color, board *b) {
 			move = move_north_west(pawn, color);
 			move = validate_capture(move, player_board, opp_board);
 			lookup |= move;
+
+			move = en_passant(pawn, color, b);
+			lookup |= move;
 			break;
 		}
         case BLACK: {
@@ -345,6 +443,9 @@ uint64_t pawn_lookup(uint64_t pawn, short color, board *b) {
             move = move_south_east(pawn, color);
             move = validate_capture(move, player_board, opp_board);
             lookup |= move;
+
+			move = en_passant(pawn, color, b);
+			lookup |= move;
             break;
         }
 		default:
@@ -759,7 +860,14 @@ short make_move(square src, square dest, short turn, board *board) {
 			dest_piece_ptr = get_pointer_to_piece(dest_piece, board);
 			*dest_piece_ptr = 0ULL;
 			status = CAPTURE_MOVE;
-		} else {
+		} 
+		else if(move == board->en_passant){
+			dest_piece_ptr = get_pointer_to_piece(board->en_pass_pawn, board);
+			*dest_piece_ptr = 0ULL;
+			status = EN_PASSANT_MOVE;
+			update_square_table(dest.file, src.rank, EMPTY_SQUARE, board);
+		}	
+		else {
 			status = NORMAL_MOVE;
 		}
 
@@ -769,6 +877,12 @@ short make_move(square src, square dest, short turn, board *board) {
 		Move m = {src, dest, piece, board->square_table[dest.file - 1][dest.rank - 1], 0};
 		push(&moves, m);
 
+		// reset enpassant if one of the legal moves is enpassant as right to enpassant is valid only for one move
+		if(legal_moves & board->en_passant){
+			board->en_passant = 0ULL;
+			board->en_pass_pawn = 0;
+		}
+		
 		color = piece & 8 ? BLACK : WHITE;
 		if (in_check((color ? WHITE : BLACK), board)) {
 			status = CHECK_MOVE;

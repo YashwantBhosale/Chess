@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdbool.h>
 typedef struct {
 	square src;
 	square dest;
@@ -20,6 +21,7 @@ typedef struct {
 
 extern move_stack moves;
 
+bool validate_square(square s);
 void init_move_stack(move_stack *s);
 void push(move_stack *s, Move move);
 Move peek(move_stack s);

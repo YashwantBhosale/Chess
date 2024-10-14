@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include<stdbool.h>
 #include "chessboard.h"
 #include "move_stack.h"
 
@@ -20,7 +21,12 @@ void push(move_stack *s, Move move) {
 }
 
 Move peek(move_stack s) {
-	return s.top->move;
+	if(s.top == NULL) {
+		Move m = {0};
+		return m;
+	}
+
+	return (s.top)->move;
 }
 
 Move pop(move_stack *s) {
@@ -30,6 +36,13 @@ Move pop(move_stack *s) {
 	s->size--;
 	free(temp);
 	return m;
+}
+
+bool validate_square(square s) {
+	if(s.file < A || s.file > H || s.rank < 1 || s.rank > 8)
+		return false;
+	else
+		return true;
 }
 
 
