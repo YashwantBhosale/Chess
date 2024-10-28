@@ -26,4 +26,3 @@ void init_move_stack(move_stack *s);
 void push(move_stack *s, Move move);
 Move peek(move_stack s);
 Move pop(move_stack *s);
-

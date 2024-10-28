@@ -44,5 +44,3 @@ bool validate_square(square s) {
 	else
 		return true;
 }
-
-
