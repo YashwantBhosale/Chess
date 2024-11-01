@@ -33,7 +33,7 @@ void new_game(board *b) {
 
 	while (1) {
 		// update_attack_tables(b);
-		clrscr();
+		// clrscr();
 		if (b->attack_tables[WHITE] == 0ULL) {
 			wprintf(L"%s is in checkmate 1\n", "White");
 			break;
@@ -91,6 +91,10 @@ void new_game(board *b) {
 			wprintf(L"%s is in checkmate\n", "Black");
 			break;
 		}
+
+		
+		
+	
 
 		if (status == INVALID_MOVE) {
 			continue;

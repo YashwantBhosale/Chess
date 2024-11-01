@@ -683,65 +683,78 @@ uint64_t get_combined_lookup_table(board *b, short color) {
 	switch (color) {
 		case WHITE: {
 			cursor = WHITE_PAWN_1;
-			for (int i = 0; i < 8; i++) {
+			for (int i = 0; i < b->white->count.pawns; i++) {
 				lookup_table |= generate_lookup_table(b->white->pawns[i], cursor, b);
 				cursor += 16;
 			}
 
 			cursor = WHITE_KNIGHT_1;
-			for (int i = 0; i < 2; i++) {
+			for (int i = 0; i < b->white->count.knights; i++) {
 				lookup_table |= generate_lookup_table(b->white->knights[i], cursor, b);
 				cursor += 16;
 			}
 
 			cursor = WHITE_BISHOP_1;
-			for (int i = 0; i < 2; i++) {
+			for (int i = 0; i < b->white->count.bishops; i++) {
 				lookup_table |= generate_lookup_table(b->white->bishops[i], cursor, b);
 				cursor += 16;
 			}
 
 			cursor = WHITE_ROOK_1;
-			for (int i = 0; i < 2; i++) {
+			for (int i = 0; i < b->white->count.rooks; i++) {
 				lookup_table |= generate_lookup_table(b->white->rooks[i], cursor, b);
 				cursor += 16;
 			}
 
 			cursor = WHITE_QUEEN;
-			lookup_table |= generate_lookup_table(b->white->queen[0], cursor, b);
+			for (int i = 0; i < b->white->count.queens; i++) {
+				lookup_table |= generate_lookup_table(b->white->queen[i], cursor, b);
+				wprintf(L"queen no. %d, position: %llu -> \n", i, b->white->queen[i]);
+				print_square_from_bitboard(b->white->queen[i]);
+				wprintf(L"\n");
+				cursor += 16;
+			}
 
 			cursor = WHITE_KING;
 			lookup_table |= generate_lookup_table(b->white->king, cursor, b);
+
+			break;
 		}
 		case BLACK: {
 			cursor = BLACK_PAWN_1;
-			for (int i = 0; i < 8; i++) {
+			for (int i = 0; i < b->black->count.pawns; i++) {
 				lookup_table |= generate_lookup_table(b->black->pawns[i], cursor, b);
 				cursor += 16;
 			}
 
 			cursor = BLACK_KNIGHT_1;
-			for (int i = 0; i < 2; i++) {
+			for (int i = 0; i < b->black->count.knights; i++) {
 				lookup_table |= generate_lookup_table(b->black->knights[i], cursor, b);
 				cursor += 16;
 			}
 
 			cursor = BLACK_BISHOP_1;
-			for (int i = 0; i < 2; i++) {
+			for (int i = 0; i < b->black->count.bishops; i++) {
 				lookup_table |= generate_lookup_table(b->black->bishops[i], cursor, b);
 				cursor += 16;
 			}
 
 			cursor = BLACK_ROOK_1;
-			for (int i = 0; i < 2; i++) {
+			for (int i = 0; i < b->black->count.rooks; i++) {
 				lookup_table |= generate_lookup_table(b->black->rooks[i], cursor, b);
 				cursor += 16;
 			}
 
 			cursor = BLACK_QUEEN;
-			lookup_table |= generate_lookup_table(b->black->queen[0], cursor, b);
+			for (int i = 0; i < b->black->count.queens; i++) {
+				lookup_table |= generate_lookup_table(b->black->queen[i], cursor, b);
+				cursor += 16;
+			}
 
 			cursor = BLACK_KING;
 			lookup_table |= generate_lookup_table(b->black->king, cursor, b);
+
+			break;
 		}
 	}
 	return lookup_table;
@@ -779,17 +792,17 @@ board *copy_board(board *b) {
 	    2. https://cstdspace.quora.com/How-to-copy-one-array-to-another-using-the-C-programming-language
 	*/
 
-	memcpy(new_board->white->pawns, b->white->pawns, sizeof(uint64_t) * 8);
-	memcpy(new_board->white->knights, b->white->knights, sizeof(uint64_t) * 2);
-	memcpy(new_board->white->bishops, b->white->bishops, sizeof(uint64_t) * 2);
-	memcpy(new_board->white->rooks, b->white->rooks, sizeof(uint64_t) * 2);
-	memcpy(new_board->white->queen, b->white->queen, sizeof(uint64_t));
+	memcpy(new_board->white->pawns, b->white->pawns, sizeof(uint64_t) * b->white->count.pawns);
+	memcpy(new_board->white->knights, b->white->knights, sizeof(uint64_t) * b->white->count.knights);
+	memcpy(new_board->white->bishops, b->white->bishops, sizeof(uint64_t) * b->white->count.bishops);
+	memcpy(new_board->white->rooks, b->white->rooks, sizeof(uint64_t) * b->white->count.rooks);
+	memcpy(new_board->white->queen, b->white->queen, sizeof(uint64_t) * b->white->count.queens);
 
-	memcpy(new_board->black->pawns, b->black->pawns, sizeof(uint64_t) * 8);
-	memcpy(new_board->black->knights, b->black->knights, sizeof(uint64_t) * 2);
-	memcpy(new_board->black->bishops, b->black->bishops, sizeof(uint64_t) * 2);
-	memcpy(new_board->black->rooks, b->black->rooks, sizeof(uint64_t) * 2);
-	memcpy(new_board->black->queen, b->black->queen, sizeof(uint64_t));
+	memcpy(new_board->black->pawns, b->black->pawns, sizeof(uint64_t) * b->black->count.pawns);
+	memcpy(new_board->black->knights, b->black->knights, sizeof(uint64_t) * b->black->count.knights);
+	memcpy(new_board->black->bishops, b->black->bishops, sizeof(uint64_t) * b->black->count.bishops);
+	memcpy(new_board->black->rooks, b->black->rooks, sizeof(uint64_t) * b->black->count.rooks);
+	memcpy(new_board->black->queen, b->black->queen, sizeof(uint64_t) * b->black->count.queens);
 
 	new_board->white->king = b->white->king;
 	new_board->black->king = b->black->king;
@@ -816,14 +829,14 @@ bool in_check(short color, board *b) {
 	// attack_table = color == WHITE ? b->attack_tables[BLACK] : b->attack_tables[WHITE];
 	attack_table = get_combined_lookup_table(b, !color);
 
-	// Check if king is attacked
-
-	// wprintf(L"-----------------------IN CHECK FUNCTION LOG-----------------------------\n");
-	// wprintf(L"color : %s,  king's position: ", color == WHITE ? "white" : "black");
-	// print_square_from_bitboard(king);
-	// wprintf(L"\n\nopponent's attack table : ");
-	// print_moves(attack_table);
-	// wprintf(L"-----------------------END OF IN CHECK FUNCTION LOG-----------------------------\n\n");
+	/* DEBUGGING */
+	// if(piece_type(b->square_table[G-1][7]) == QUEEN) {
+	// 	wprintf(L"in check function log--------------------------\n");
+	// 	wprintf(L"\n%s King: \n", color == WHITE ? "White" : "Black");
+	// 	print_square_from_bitboard(king);
+	// 	wprintf(L"\n%s Attack Table: \n", color == WHITE ? "Black" : "White");
+	// 	print_moves(attack_table);
+	// }
 
 	return king & attack_table;
 }
@@ -950,7 +963,17 @@ void move(square src, square dest, uint64_t *src_piece_ptr, uint64_t *dest_piece
 		}
 		case WHITE_PROMOTES_TO_QUEEN: {
 			uint8_t new_queen = new_piece(WHITE, QUEEN, move, b);
+			wprintf(L"new queen: %d\n", new_queen);
+
 			*src_piece_ptr = 0ULL;
+
+			wprintf(L"in move function\n");
+			for(int i = 0; i < b->white->count.queens; i++) {
+				wprintf(L"queen no. %d, position: ", i);
+				print_square_from_bitboard(b->white->queen[i]);
+				wprintf(L"\n");
+			}
+
 			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
 			break;
 		}
@@ -1022,6 +1045,9 @@ short simulate_move(square src, square dest, short turn, board *b) {
 	if (piece_type(piece) == KING && absolute(src.file - dest.file) == 2) {
 		move_type = CASTLE_MOVE;
 	}
+	// wprintf(L"moving %d to ", piece);
+	// print_square_from_bitboard(get_bitboard(dest.file, dest.rank));;
+	// wprintf(L"\n");
 
 	// Simulate the move using the move() function
 	move(src, dest, src_piece_ptr, dest_piece_ptr, move_type, simulation_board);
@@ -1078,61 +1104,68 @@ uint64_t generate_attack_tables_for_color(uint8_t color, board *b) {
 
 	if (color == WHITE) {
 		cursor = WHITE_PAWN_1;
-		for (int i = 0; i < 8; i++) {
+		for (int i = 0; i < b->white->count.pawns; i++) {
 			attack_table |= generate_legal_moves(b->white->pawns[i], cursor, color, b);
 			cursor += 16;
 		}
 
 		cursor = WHITE_KNIGHT_1;
-		for (int i = 0; i < 2; i++) {
+		for (int i = 0; i < b->white->count.knights; i++) {
 			attack_table |= generate_legal_moves(b->white->knights[i], cursor, color, b);
 			cursor += 16;
 		}
 
 		cursor = WHITE_BISHOP_1;
-		for (int i = 0; i < 2; i++) {
+		for (int i = 0; i < b->white->count.bishops; i++) {
 			attack_table |= generate_legal_moves(b->white->bishops[i], cursor, color, b);
 			cursor += 16;
 		}
 
 		cursor = WHITE_ROOK_1;
-		for (int i = 0; i < 2; i++) {
+		for (int i = 0; i < b->white->count.rooks; i++) {
 			attack_table |= generate_legal_moves(b->white->rooks[i], cursor, color, b);
 			cursor += 16;
 		}
 
 		cursor = WHITE_QUEEN;
-		attack_table |= generate_legal_moves(*b->white->queen, cursor, color, b);
+		for (int i = 0; i < b->white->count.queens; i++){
+			attack_table |= generate_legal_moves(b->white->queen[i], cursor, color, b);
+			cursor += 16;
+		}
 
 		cursor = WHITE_KING;
 		attack_table |= generate_legal_moves(b->white->king, cursor, color, b);
 	} else {
 		cursor = BLACK_PAWN_1;
-		for (int i = 0; i < 8; i++) {
+		for (int i = 0; i < b->black->count.pawns; i++) {
 			attack_table |= generate_legal_moves(b->black->pawns[i], cursor, color, b);
 			cursor += 16;
 		}
 
 		cursor = BLACK_KNIGHT_1;
-		for (int i = 0; i < 2; i++) {
+		for (int i = 0; i < b->black->count.knights; i++) {
 			attack_table |= generate_legal_moves(b->black->knights[i], cursor, color, b);
 			cursor += 16;
 		}
 
 		cursor = BLACK_BISHOP_1;
-		for (int i = 0; i < 2; i++) {
+		for (int i = 0; i < b->black->count.bishops; i++) {
 			attack_table |= generate_legal_moves(b->black->bishops[i], cursor, color, b);
 			cursor += 16;
 		}
 
 		cursor = BLACK_ROOK_1;
-		for (int i = 0; i < 2; i++) {
+		for (int i = 0; i < b->black->count.rooks; i++) {
 			attack_table |= generate_legal_moves(b->black->rooks[i], cursor, color, b);
 			cursor += 16;
 		}
 
 		cursor = BLACK_QUEEN;
-		attack_table |= generate_legal_moves(*b->black->queen, cursor, color, b);
+		for (int i = 0; i < b->black->count.queens; i++){
+			attack_table |= generate_legal_moves(b->black->queen[i], cursor, color, b);
+			cursor += 16;
+		}
+
 
 		cursor = BLACK_KING;
 		attack_table |= generate_legal_moves(b->black->king, cursor, color, b);
@@ -1282,6 +1315,14 @@ short make_move(square src, square dest, short turn, board *b) {
 		move(src, dest, piece_ptr, dest_piece_ptr, status, b);
 		Move m = {src, dest, piece, dest_piece, status};
 		push(&moves, m);
+
+		wprintf(L"in make move\n");
+
+					for(int i = 0; i < b->white->count.queens; i++) {
+				wprintf(L"queen no. %d, position: ", i);
+				print_square_from_bitboard(b->white->queen[i]);
+				wprintf(L"\n");
+			}
 
 
 		// do not check for castle flags if they are already set to invalid

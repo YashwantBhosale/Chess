@@ -360,34 +360,71 @@ uint64_t *get_pointer_to_piece_type(short color, uint8_t piece_type, board *b) {
     return piece;
 }
 
-// pawn promotion
-uint8_t new_piece(short color, uint8_t piece_type, uint64_t position_bb, board *b) {
-    // This function is supposed to allcate memory for the new piece and return the piece id
+// pawn promotion : this function needs to be rewritten using realloc, malloc was used for debugging purpose
+uint8_t new_piece(short color, uint8_t _piece_type, uint64_t position_bb, board *b) {
+    uint8_t piece_color = color == WHITE ? 0 : 8;
 
-    // get the color of the piece
-    uint8_t piece_color = color ? BLACK : WHITE;
-     
-    short *piece_counter = get_pointer_to_piece_counter(b, piece_type);
-    if(!piece_counter) return 0;
-
-    // increment the piece counter
+    // Get the pointer to the piece count and increment it
+    short *piece_counter = get_pointer_to_piece_counter(b, _piece_type);
+    if (!piece_counter) return 0;
     (*piece_counter)++;
     uint8_t piece_number = *piece_counter;
 
-    // calculate the piece id
-    uint8_t piece_id = piece_color | piece_type | (piece_number << 4);
+    // Calculate the piece id
+    uint8_t piece_id = piece_color | _piece_type | ((piece_number - 1) << 4);
 
-    // get the pointer to the piece type
-    uint64_t *piece_type_ptr = get_pointer_to_piece_type(color, piece_type, b);
+    // Get the pointer to the piece type array
+    uint64_t *piece_type_ptr = get_pointer_to_piece_type(color, _piece_type, b);
 
-    // allocate memory for the new piece
-    piece_type_ptr = (uint64_t *)realloc(piece_type_ptr, sizeof(uint64_t) * piece_number);
-    piece_type_ptr[piece_number-1] = position_bb;
+    // Allocate new memory block of increased size
+    uint64_t *new_piece_type_ptr = (uint64_t *)malloc(sizeof(uint64_t) * piece_number);
+    if (new_piece_type_ptr == NULL) {
+        return 0; // Handle allocation failure
+    }
 
+    // Copy old data if piece_type_ptr is non-null (i.e., not the first piece)
+    if (piece_type_ptr != NULL) {
+        for (int i = 0; i < piece_number - 1; i++) {
+            new_piece_type_ptr[i] = piece_type_ptr[i];
+        }
+        free(piece_type_ptr); // Free the old memory
+    }
+
+    // Set the new position for the latest piece at the last index
+    new_piece_type_ptr[piece_number - 1] = position_bb;
+
+    // Update the board's piece pointer to point to the newly allocated memory
+    if (color == WHITE) {
+        switch (_piece_type) {
+            case PAWN:   b->white->pawns = new_piece_type_ptr; break;
+            case KNIGHT: b->white->knights = new_piece_type_ptr; break;
+            case BISHOP: b->white->bishops = new_piece_type_ptr; break;
+            case ROOK:   b->white->rooks = new_piece_type_ptr; break;
+            case QUEEN:  b->white->queen = new_piece_type_ptr; break;
+        }
+    } else {
+        switch (_piece_type) {
+            case PAWN:   b->black->pawns = new_piece_type_ptr; break;
+            case KNIGHT: b->black->knights = new_piece_type_ptr; break;
+            case BISHOP: b->black->bishops = new_piece_type_ptr; break;
+            case ROOK:   b->black->rooks = new_piece_type_ptr; break;
+            case QUEEN:  b->black->queen = new_piece_type_ptr; break;
+        }
+    }
+
+    // Debugging print to verify bitboard values
+    for (int i = 0; i < piece_number; i++) {
+        wprintf(L"Piece %d bitboard: ", i + 1);
+        print_square_from_bitboard(new_piece_type_ptr[i]);
+        wprintf(L"\n");
+    }
+
+    // Update the square table and return the new piece ID
     square dest = get_square_from_bitboard(position_bb);
     update_square_table(dest.file, dest.rank, piece_id, b);
 
     return piece_id;
 }
+
 
 // PENDING: function to free the memory allocated for the board
