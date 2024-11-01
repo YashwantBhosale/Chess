@@ -47,9 +47,9 @@ void new_game(board *b) {
 		print_board(b, turn);
 		wprintf(L"%s's turn\n", turn == WHITE ? "White" : "Black");
 
-		printf("Enter the source square: ");
+		// printf("Enter the source square: ");
 		square src = read_square();
-		printf("Enter the destination square: ");
+		// printf("Enter the destination square: ");
 		square dest = read_square();
 		status = make_move(src, dest, turn, b);
 

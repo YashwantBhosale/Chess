@@ -257,7 +257,7 @@ void print_board(board *b, short turn) {
         default:
             return;
     }
-    wprintf(L"\n\n\n");
+    // wprintf(L"\n\n\n");
     for(int rank = start_rank; turn == WHITE ? rank>=end_rank : rank <= end_rank  ; turn == WHITE ? rank-- : rank++){
         wprintf(L"\t\t+---+---+---+---+---+---+---+---+\n");
         wprintf(L"\t\t|");
@@ -306,6 +306,88 @@ void print_moves(uint64_t moves) {
     }
     wprintf(L"\n");
     return;
+}
+
+short *get_pointer_to_piece_counter(board *b, uint8_t piece_id) {
+    short *piece_counter;
+    switch(piece_type(piece_id)) {
+        case PAWN:
+            piece_counter = &b->white->count.pawns;
+            break;
+        case KNIGHT:
+            piece_counter = &b->white->count.knights;
+            break;
+        case BISHOP:
+            piece_counter = &b->white->count.bishops;
+            break;
+        case ROOK:
+            piece_counter = &b->white->count.rooks;
+            break;
+        case QUEEN:
+            piece_counter = &b->white->count.queens;
+            break;
+
+        default:
+            piece_counter = NULL;
+    }
+    return piece_counter;
+}
+
+uint64_t *get_pointer_to_piece_type(short color, uint8_t piece_type, board *b) {
+    uint64_t *piece;
+    switch(piece_type) {
+        case PAWN:
+            piece = color == WHITE ? b->white->pawns : b->black->pawns;
+            break;
+        case KNIGHT:
+            piece = color == WHITE ? b->white->knights : b->black->knights;
+            break;
+        case BISHOP:
+            piece = color == WHITE ? b->white->bishops : b->black->bishops;
+            break;
+        case ROOK:
+            piece = color == WHITE ? b->white->rooks : b->black->rooks;
+            break;
+        case QUEEN:
+            piece = color == WHITE ? b->white->queen : b->black->queen;
+            break;
+        case KING:
+            piece = color == WHITE ? &b->white->king : &b->black->king;
+            break;
+        default:
+            piece = NULL;
+    }
+    return piece;
+}
+
+// pawn promotion
+uint8_t new_piece(short color, uint8_t piece_type, uint64_t position_bb, board *b) {
+    // This function is supposed to allcate memory for the new piece and return the piece id
+
+    // get the color of the piece
+    uint8_t piece_color = color ? BLACK : WHITE;
+     
+    short *piece_counter = get_pointer_to_piece_counter(b, piece_type);
+    if(!piece_counter) return 0;
+
+    // increment the piece counter
+    (*piece_counter)++;
+    uint8_t piece_number = *piece_counter;
+
+    // calculate the piece id
+    uint8_t piece_id = piece_color | piece_type | (piece_number << 4);
+
+    // get the pointer to the piece type
+    uint64_t *piece_type_ptr = get_pointer_to_piece_type(color, piece_type, b);
+
+    // allocate memory for the new piece
+    piece_type_ptr = (uint64_t *)realloc(piece_type_ptr, sizeof(uint64_t) * piece_number);
+    piece_type_ptr[piece_number-1] = position_bb;
+
+    square dest = get_square_from_bitboard(position_bb);
+    update_square_table(dest.file, dest.rank, piece_id, b);
+
+    return piece_id;
 }
 
 // PENDING: function to free the memory allocated for the board

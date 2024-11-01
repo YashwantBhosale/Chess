@@ -147,6 +147,13 @@ uint8_t piece_color(uint8_t piece_id);
 uint8_t piece_type(uint8_t piece_id);
 uint8_t piece_number(uint8_t piece_id);
 
+enum { PAWN = 1,
+	   KNIGHT = 2,
+	   BISHOP = 3,
+	   ROOK = 4,
+	   QUEEN = 5,
+	   KING = 6 };
+
 /*
     Structure for pieces:
     * Design:
@@ -205,6 +212,7 @@ void init_pieces(pieces *type);
 void print_board(board *board, short turn); // prints the board
 uint64_t white_board(board *b); // returns the bitboard of all white pieces
 uint64_t black_board(board *b); // returns the bitboard of all black pieces
+uint8_t new_piece(short color, uint8_t piece_type, uint64_t position_bb, board *b); // for pawn promotion
 
 // functions for square table
 void update_square_table(int file, int rank, uint8_t piece, board *b);

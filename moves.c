@@ -840,6 +840,7 @@ void move(square src, square dest, uint64_t *src_piece_ptr, uint64_t *dest_piece
 
 	uint64_t move = get_bitboard(dest.file, dest.rank);
 
+
 	switch (move_type) {
 		case NORMAL_MOVE: {
 			*src_piece_ptr = move;
@@ -925,7 +926,58 @@ void move(square src, square dest, uint64_t *src_piece_ptr, uint64_t *dest_piece
 			}
 			break;
 		}
+		case WHITE_PROMOTES_TO_KNIGHT: {
+			// this new piece function allocates memory for new piece and also updates its bitboard and square table entry
+			uint8_t new_knight = new_piece(WHITE, KNIGHT, move, b);
+			
+			// the src piece is pawn so we need to clear the pawn bitboard
+			*src_piece_ptr = 0ULL;
+			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
 
+			break;
+		}
+		case WHITE_PROMOTES_TO_BISHOP: {
+			uint8_t new_bishop = new_piece(WHITE, BISHOP, move, b);
+			*src_piece_ptr = 0ULL;
+			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
+			break;
+		}
+		case WHITE_PROMOTES_TO_ROOK: {
+			uint8_t new_rook = new_piece(WHITE, ROOK, move, b);
+			*src_piece_ptr = 0ULL;
+			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
+			break;
+		}
+		case WHITE_PROMOTES_TO_QUEEN: {
+			uint8_t new_queen = new_piece(WHITE, QUEEN, move, b);
+			*src_piece_ptr = 0ULL;
+			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
+			break;
+		}
+		case BLACK_PROMOTES_TO_KNIGHT: {
+			uint8_t new_knight = new_piece(BLACK, KNIGHT, move, b);
+			*src_piece_ptr = 0ULL;
+			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
+			break;
+		}
+		case BLACK_PROMOTES_TO_BISHOP: {
+			uint8_t new_bishop = new_piece(BLACK, BISHOP, move, b);
+			*src_piece_ptr = 0ULL;
+			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
+			break;
+		}
+		case BLACK_PROMOTES_TO_ROOK: {
+			uint8_t new_rook = new_piece(BLACK, ROOK, move, b);
+			*src_piece_ptr = 0ULL;
+			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
+			break;
+		}
+		case BLACK_PROMOTES_TO_QUEEN: {
+			uint8_t new_queen = new_piece(BLACK, QUEEN, move, b);
+			*src_piece_ptr = 0ULL;
+			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
+			break;
+		}
 		default:
 			break;
 	}
@@ -1105,6 +1157,15 @@ void update_attack_tables(board *b, short turn) {
 	print_moves(b->attack_tables[BLACK]);
 }
 
+void promotion_move_menu() {
+	wprintf(L"Promotion Menu\n");
+	wprintf(L"1. Queen  ");
+	wprintf(L"2. Rook  ");
+	wprintf(L"3. Bishop  ");
+	wprintf(L"4. Knight\n");
+	return;
+}
+
 // function to make a move
 short make_move(square src, square dest, short turn, board *b) {
 	/*
@@ -1169,11 +1230,55 @@ short make_move(square src, square dest, short turn, board *b) {
 			status = CASTLE_MOVE;
 		}
 
+		if(piece_type(piece) == PAWN && color == WHITE && dest.rank == 8) {
+			promotion_move_menu();
+			int choice;
+			scanf("%d", &choice);
+			
+			switch(choice) {
+				case 1:
+					status = WHITE_PROMOTES_TO_QUEEN;
+					break;
+				case 2:
+					status = WHITE_PROMOTES_TO_ROOK;
+					break;
+				case 3:
+					status = WHITE_PROMOTES_TO_BISHOP;
+					break;
+				case 4:
+					status = WHITE_PROMOTES_TO_KNIGHT;
+					break;
+				default:
+					printf("Invalid choice\n");
+					return INVALID_MOVE;
+			}
+		}
+		else if(piece_type(piece) == PAWN && color == BLACK && dest.rank == 1) {
+			promotion_move_menu();
+			int choice;
+			wscanf(L"%d", &choice);
 
-		// wprintf(L"Move status: %s\n", status == NORMAL_MOVE ? "Normal Move" : 
-		// 								status == CAPTURE_MOVE ? "Capture Move" : 
-		// 								status == EN_PASSANT_MOVE ? "En Passant Move" : 
-		// 								"Invalid Move");
+			switch(choice) {
+				case 1:
+					status = BLACK_PROMOTES_TO_QUEEN;
+					break;
+				case 2:
+					status = BLACK_PROMOTES_TO_ROOK;
+					break;
+				case 3:
+					status = BLACK_PROMOTES_TO_BISHOP;
+					break;
+				case 4:
+					status = BLACK_PROMOTES_TO_KNIGHT;
+					break;
+				default:
+					printf("Invalid choice\n");
+					return INVALID_MOVE;
+			}			
+
+		}
+
+
 		move(src, dest, piece_ptr, dest_piece_ptr, status, b);
 		Move m = {src, dest, piece, dest_piece, status};
 		push(&moves, m);
