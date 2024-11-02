@@ -159,7 +159,7 @@ uint64_t validate_capture(uint64_t move, uint64_t pb, uint64_t ob) {
 }
 
 // function to validate en passant
-uint64_t validate_en_passant(uint64_t piece_bitboard, uint64_t en_passant, board *b) {
+uint64_t validate_en_passant(uint64_t piece_bitboard, short color, uint64_t en_passant, board *b) {
 	square src, dest;
 	src = get_square_from_bitboard(piece_bitboard);
 	dest = get_square_from_bitboard(en_passant);
@@ -168,13 +168,25 @@ uint64_t validate_en_passant(uint64_t piece_bitboard, uint64_t en_passant, board
 	piece = b->square_table[src.file-1][src.rank-1];
 	dest_piece = b->square_table[dest.file-1][dest.rank-1];
 
-	// en passant check
+	// // en passant check
 	if (piece_type(piece) == PAWN && absolute(src.rank - dest.rank) == 1 && dest_piece == EMPTY_SQUARE) {
 		Move last_move = peek(moves);
-		if ((last_move.piece & 7) == PAWN && absolute(last_move.src.rank - last_move.dest.rank) == 2 && last_move.dest.file == dest.file) {
-			return en_passant;
+		if ((last_move.piece & 7) == PAWN && absolute(last_move.src.rank - last_move.dest.rank) == 2 && last_move.dest.file == dest.file && piece_color(last_move.piece) != color) {
+			
+			if(color == WHITE && piece_bitboard & rankmask(5)){
+				return en_passant;
+			}
+			else if(color == BLACK && piece_bitboard & rankmask(4)) {
+				return en_passant;
+			}
+			else {
+				return 0ULL;
+			}
 		}
 	} 
+
+	
+
 	return 0ULL;
 }
 
@@ -354,13 +366,13 @@ uint64_t pawn_lookup(uint64_t pawn, short color, board *b) {
 			uint64_t en_passant;
 			en_passant = move_north_east(pawn, color);
 			if (en_passant) {
-				move = validate_en_passant(pawn, en_passant, b);
+				move = validate_en_passant(pawn, color, en_passant, b);
 				lookup |= move;
 			}
 
 			en_passant = move_north_west(pawn, color);
 			if (en_passant) {
-				move = validate_en_passant(pawn, en_passant, b);
+				move = validate_en_passant(pawn, color, en_passant, b);
 				lookup |= move;
 			}
 			break;
@@ -387,13 +399,13 @@ uint64_t pawn_lookup(uint64_t pawn, short color, board *b) {
 			uint64_t en_passant;
 			en_passant = move_south_west(pawn, color);
 			if (en_passant) {
-				move = validate_en_passant(pawn, en_passant, b);
+				move = validate_en_passant(pawn, color, en_passant, b);
 				lookup |= move;
 			}
 
 			en_passant = move_south_east(pawn, color);
 			if (en_passant) {
-				move = validate_en_passant(pawn, en_passant, b);
+				move = validate_en_passant(pawn, color, en_passant, b);
 				lookup |= move;
 			}
 			break;
