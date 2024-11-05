@@ -31,3 +31,4 @@ uint64_t generate_lookup_table(uint64_t piece_bitboard, uint8_t piece_id, board 
 void update_attack_tables(board *b, short turn);
 short make_move(square src, square dest, short turn, board *board);
 board* copy_board(board *b);
+int get_all_legal_moves(uint8_t color, board* b, short int legal_moves_array[MAX_LEGAL_MOVES][4]);

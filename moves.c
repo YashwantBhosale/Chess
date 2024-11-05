@@ -721,9 +721,6 @@ uint64_t get_combined_lookup_table(board *b, short color) {
 			cursor = WHITE_QUEEN;
 			for (int i = 0; i < b->white->count.queens; i++) {
 				lookup_table |= generate_lookup_table(b->white->queen[i], cursor, b);
-				wprintf(L"queen no. %d, position: %llu -> \n", i, b->white->queen[i]);
-				print_square_from_bitboard(b->white->queen[i]);
-				wprintf(L"\n");
 				cursor += 16;
 			}
 
@@ -1102,6 +1099,117 @@ uint64_t generate_legal_moves(uint64_t piece_bitboard, uint8_t piece_id, short t
 	return legal_moves;
 }
 
+
+int get_legal_moves_from_attack_table(uint64_t generated_move, uint64_t piece, short int legal_moves_array[MAX_LEGAL_MOVES][4], int legal_moves_array_count) {
+	square src_sq, dest_sq;
+	uint64_t cursor = 1ULL;
+	src_sq = get_square_from_bitboard(piece);
+	for (int i = 0; i < 64; i++) {
+		if(generated_move & cursor) {
+			dest_sq = get_square_from_bitboard(cursor);
+			legal_moves_array[legal_moves_array_count][0] = src_sq.file;
+			legal_moves_array[legal_moves_array_count][1] = src_sq.rank;
+			legal_moves_array[legal_moves_array_count][2] = dest_sq.file;
+			legal_moves_array[legal_moves_array_count][3] = dest_sq.rank;
+			legal_moves_array_count++;
+		}
+		cursor <<= 1;
+	}
+	return legal_moves_array_count;
+}
+
+int get_all_legal_moves(uint8_t color, board* b, short int legal_moves_array[MAX_LEGAL_MOVES][4]) {
+	int legal_moves_array_count = 0;
+	uint64_t generated_move;
+	uint8_t cursor;
+	if (color == WHITE) {
+		cursor = WHITE_PAWN_1;
+		for (int i = 0; i < 8; i++) {
+			generated_move = generate_legal_moves(b->white->pawns[i], cursor, color, b);
+			legal_moves_array_count = get_legal_moves_from_attack_table(generated_move, b->white->pawns[i], legal_moves_array, legal_moves_array_count);
+			cursor += 16;
+		}
+
+		cursor = WHITE_KNIGHT_1;
+		for (int i = 0; i < 2; i++) {
+			generated_move = generate_legal_moves(b->white->knights[i], cursor, color, b);
+			legal_moves_array_count = get_legal_moves_from_attack_table(generated_move, b->white->knights[i], legal_moves_array, legal_moves_array_count);
+			cursor += 16;
+		}
+
+		cursor = WHITE_BISHOP_1;
+		for (int i = 0; i < 2; i++) {
+			generated_move = generate_legal_moves(b->white->bishops[i], cursor, color, b);
+			legal_moves_array_count = get_legal_moves_from_attack_table(generated_move, b->white->bishops[i], legal_moves_array, legal_moves_array_count);
+			cursor += 16;
+		}
+
+		cursor = WHITE_ROOK_1;
+		for (int i = 0; i < 2; i++) {
+			generated_move = generate_legal_moves(b->white->rooks[i], cursor, color, b);
+			legal_moves_array_count = get_legal_moves_from_attack_table(generated_move, b->white->rooks[i], legal_moves_array, legal_moves_array_count);
+			cursor += 16;
+		}
+
+		cursor = WHITE_QUEEN;
+		generated_move = generate_legal_moves(*b->white->queen, cursor, color, b);
+		legal_moves_array_count = get_legal_moves_from_attack_table(generated_move, *b->white->queen, legal_moves_array, legal_moves_array_count);
+
+		cursor = WHITE_KING;
+		generated_move = generate_legal_moves(b->white->king, cursor, color, b);
+		legal_moves_array_count = get_legal_moves_from_attack_table(generated_move, b->white->king, legal_moves_array, legal_moves_array_count);
+	}
+	else {
+		cursor = BLACK_PAWN_1;
+		for (int i = 0; i < 8; i++) {
+			generated_move = generate_legal_moves(b->black->pawns[i], cursor, color, b);
+			legal_moves_array_count = get_legal_moves_from_attack_table(generated_move, b->black->pawns[i], legal_moves_array, legal_moves_array_count);
+			cursor += 16;
+		}
+
+		cursor = BLACK_KNIGHT_1;
+		for (int i = 0; i < 2; i++) {
+			generated_move = generate_legal_moves(b->black->knights[i], cursor, color, b);
+			legal_moves_array_count = get_legal_moves_from_attack_table(generated_move, b->black->knights[i], legal_moves_array, legal_moves_array_count);
+			cursor += 16;
+		}
+
+		cursor = BLACK_BISHOP_1;
+		for (int i = 0; i < 2; i++) {
+			generated_move = generate_legal_moves(b->black->bishops[i], cursor, color, b);
+			legal_moves_array_count = get_legal_moves_from_attack_table(generated_move, b->black->bishops[i], legal_moves_array, legal_moves_array_count);
+			cursor += 16;
+		}
+
+		cursor = BLACK_ROOK_1;
+		for (int i = 0; i < 2; i++) {
+			generated_move = generate_legal_moves(b->black->rooks[i], cursor, color, b);
+			legal_moves_array_count = get_legal_moves_from_attack_table(generated_move, b->black->rooks[i], legal_moves_array, legal_moves_array_count);
+			cursor += 16;
+		}
+
+		cursor = BLACK_QUEEN;
+		generated_move = generate_legal_moves(*b->black->queen, cursor, color, b);
+		legal_moves_array_count = get_legal_moves_from_attack_table(generated_move, *b->black->queen, legal_moves_array, legal_moves_array_count);
+
+		cursor = BLACK_KING;
+		generated_move = generate_legal_moves(b->black->king, cursor, color, b);
+		legal_moves_array_count = get_legal_moves_from_attack_table(generated_move, b->black->king, legal_moves_array, legal_moves_array_count);
+	}
+	wprintf(L"Legal moves: ");
+	for(int i = 0; i < legal_moves_array_count; i++) {
+		wprintf(L"%d%d%d%d ", legal_moves_array[i][0], legal_moves_array[i][1], legal_moves_array[i][2], legal_moves_array[i][3]);
+	}
+	wprintf(L"\n");
+	wprintf(L"Legal moves: ");
+	for(int i = 0; i < legal_moves_array_count; i++) {
+		wprintf(L"%c%d%c%d ", legal_moves_array[i][0] + 'a' - 1, legal_moves_array[i][1], legal_moves_array[i][2] + 'a' - 1, legal_moves_array[i][3]);
+	}
+	wprintf(L"\n");
+	return legal_moves_array_count;
+}
+
+
 /*
     Function to generate attack table of white and black pieces
     Attack tables are different from lookup tables. Lookup tables just give us lookup vectors for one piece but attack tables give us all the possible moves of all the pieces of a particular color.
@@ -1328,13 +1436,13 @@ short make_move(square src, square dest, short turn, board *b) {
 		Move m = {src, dest, piece, dest_piece, status};
 		push(&moves, m);
 
-		wprintf(L"in make move\n");
+		// wprintf(L"in make move\n");
 
-					for(int i = 0; i < b->white->count.queens; i++) {
-				wprintf(L"queen no. %d, position: ", i);
-				print_square_from_bitboard(b->white->queen[i]);
-				wprintf(L"\n");
-			}
+		// 			for(int i = 0; i < b->white->count.queens; i++) {
+		// 		wprintf(L"queen no. %d, position: ", i);
+		// 		print_square_from_bitboard(b->white->queen[i]);
+		// 		wprintf(L"\n");
+		// 	}
 
 
 		// do not check for castle flags if they are already set to invalid

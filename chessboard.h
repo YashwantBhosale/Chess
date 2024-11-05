@@ -142,6 +142,8 @@ enum Files {
 #define BLACK_KING_SIDE_CASTLE_RIGHTS 0b01010000
 #define BLACK_QUEEN_SIDE_CASTLE_RIGHTS 0b01100000
 
+#define MAX_LEGAL_MOVES 218
+
 // functions for piece ids
 uint8_t piece_color(uint8_t piece_id);
 uint8_t piece_type(uint8_t piece_id);

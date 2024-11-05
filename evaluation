@@ -1,0 +1,102 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <wchar.h>
+#include <limits.h>
+#include "chessboard.h"
+#include "moves.h"
+#include "move_stack.h"
+#include "evaluation.h"
+
+/* Calculates the evaluation of the Board */
+double get_evaluation_of_board(board* board) {
+	/* add more params */
+	double eval = 0;
+	eval += 1 * board->white->count.pawns;
+	eval += 3 * board->white->count.knights;
+	eval += 3 * board->white->count.bishops;
+	eval += 5 * board->white->count.rooks;
+	eval += 9 * board->white->count.queens;
+	eval -= 1 * board->black->count.pawns;
+	eval -= 3 * board->black->count.knights;
+	eval -= 3 * board->black->count.bishops;
+	eval -= 5 * board->black->count.rooks;
+	eval -= 9 * board->black->count.queens;
+	eval -= in_check(WHITE, board);
+	eval += in_check(BLACK, board);
+	return eval;
+}
+
+void display_evaluation(double eval) {
+	// VERY IMP: BROKEN
+	double scale_multiplier = 4.0/39.0, offset = 4.0;
+	double eval_scaled = eval * scale_multiplier;
+	wprintf(L"\t\t    ");
+	for(int i = 0; i < 16; i++) wprintf(L" ");
+	wprintf(L"v\n\t\t  [ ");
+	int i;
+	for(i = -16; i <= 16; i++) {
+		if(eval_scaled == ((i * scale_multiplier * offset) - 16.0)) break;
+	}
+	for(int j = 0; j < i; j++) wprintf(L"\u2588");
+	for(int j = i; j < 33; j++) wprintf(L"-");
+	wprintf(L"]  %lf %lf\n", eval, eval_scaled);
+	return;
+}
+
+
+// double max(double num_1, double num_2) {
+// 	return (num_1 > num_2) ? num_1 : num_2;
+// }
+// double min(double num_1, double num_2) {
+// 	return (num_1 < num_2) ? num_1 : num_2;
+// }
+
+
+// double minimax(short int num_legal_moves, double alpha, double beta, short int depth, short int turn) {
+// 	if(depth == 0 || num_legal_moves == 0) {
+// 		return get_evaluation_of_child_position();
+// 	}
+// 	/* since white is maximizing player */
+// 	num_legal_moves = num_legal_moves_in_position();
+	
+// 	if(!turn) {
+// 		double max_eval = INT_MIN;
+// 		for(int i = 0; i < num_legal_moves; i++) {
+// 			double eval = minimax(num_legal_moves, alpha, beta, depth - 1, 1);
+// 			max_eval = max(max_eval, eval);
+// 			alpha = max(alpha, eval);
+// 			if(beta <= alpha) {
+// 				break;
+// 			}
+// 		}
+// 		return max_eval;
+// 	}
+// 	else {
+// 		double min_eval = INT_MAX;
+// 		for(int i = 0; i < num_legal_moves; i++) {
+// 			double eval = minimax(num_legal_moves,alpha, beta, depth - 1, 0);
+// 			min_eval = min(min_eval, eval);
+// 			beta = min(beta, eval);
+// 			if(beta <= alpha) {
+// 				break;
+// 			}
+// 		}
+// 		return min_eval;
+// 	}
+// }
+
+// int go_in_depth_and_get_optimal_soln(board* b, uint8_t turn) {
+// 	// board* temp_board = copy_board(b);
+// 	/* assuming depth = 4 */
+// 	short int legal_moves_array_1[MAX_LEGAL_MOVES][4];
+// 	short int legal_moves_array_2[MAX_LEGAL_MOVES][4];
+// 	short int legal_moves_array_3[MAX_LEGAL_MOVES][4];
+// 	short int legal_moves_array_4[MAX_LEGAL_MOVES][4];
+// 	int legal_moves_array_1_count = get_all_legal_moves(turn, b, legal_moves_array_1);
+// 	int legal_moves_array_2_count = 0;
+// 	int legal_moves_array_3_count = 0;
+// 	int legal_moves_array_4_count = 0;
+// 	// minimax(1, INT_MIN, INT_MAX, 4, turn);
+// 	// wprintf(L"num: %d\n", legal_moves_array_1_count);
+// 	return 0;
+// }
