@@ -224,10 +224,10 @@ void init_board(board *board) {
 
 // Function to print the chessboard
 void print_board(board *b, short turn) {
-    // wchar_t white_pieces[] = {L'K', L'Q', L'R', L'B', L'N', L'P'};
-	// wchar_t black_pieces[] = {L'k', L'q', L'r', L'b', L'n', L'p'};
-	wchar_t black_pieces[] = {L'♙', L'♘', L'♗', L'♖', L'♕', L'♔',};
-	wchar_t white_pieces[] = {L'♟', L'♞', L'♝', L'♜', L'♛', L'♚',};
+    wchar_t white_pieces[] = {L'P', L'N', L'B', L'R', L'Q', L'K'};
+	wchar_t black_pieces[] = {L'p', L'n', L'b', L'r', L'q', L'k'};
+	// wchar_t black_pieces[] = {L'♙', L'♘', L'♗', L'♖', L'♕', L'♔',};
+	// wchar_t white_pieces[] = {L'♟', L'♞', L'♝', L'♜', L'♛', L'♚',};
 
     /*
     WHY & 7? : The piece is stored in the square table as a 8-bit number. The lower 3 bits represent the piece type.
@@ -257,7 +257,7 @@ void print_board(board *b, short turn) {
         default:
             return;
     }
-    // wprintf(L"\n\n\n");
+	display_evaluation(get_evaluation_of_board(b));
     for(int rank = start_rank; turn == WHITE ? rank>=end_rank : rank <= end_rank  ; turn == WHITE ? rank-- : rank++){
         wprintf(L"\t\t+---+---+---+---+---+---+---+---+\n");
         wprintf(L"\t\t|");

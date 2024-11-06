@@ -49,23 +49,22 @@ void single_player(board *b) {
 	square src, dest;
 
 	while (1) {
-		clear_screen();
-
+		clrscr();
 		if (b->attack_tables[WHITE] == 0ULL) {
-			wprintf(L"%s is in checkmate\n", "White");
+			wprintf(L"White is in checkmate\n");
 			break;
 		} else if (b->attack_tables[BLACK] == 0ULL) {
-			wprintf(L"%s is in checkmate\n", "Black");
+			wprintf(L"Black is in checkmate\n");
 			break;
 		}
-
 		print_board(b, turn);
 		wprintf(L"%s's turn\n", turn == WHITE ? "White" : "Black");
 
 		if (turn == WHITE) {
 			src = read_square();
 			dest = read_square();
-		} else if (turn == BLACK) {
+		}
+		else if (turn == BLACK) {
 			int upper_bound = get_all_legal_moves(BLACK, b, legal_moves_array) - 1;
 
 			int rand = randomNumber(0, upper_bound);
@@ -117,12 +116,12 @@ void new_game(board *b) {
 		// update_attack_tables(b);
 		clrscr();
 		if (b->attack_tables[WHITE] == 0ULL) {
-			wprintf(L"%s is in checkmate 1\n", "White");
+			wprintf(L"White is in checkmate\n");
 			break;
 		}
 
 		else if (b->attack_tables[BLACK] == 0ULL) {
-			wprintf(L"%s is in checkmate\n", "Black");
+			wprintf(L"Black is in checkmate\n");
 			break;
 		}
 
