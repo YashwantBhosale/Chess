@@ -2,21 +2,12 @@
 #include <stdlib.h>
 #include <wchar.h>
 #include <limits.h>
+
 #include "chessboard.h"
 #include "moves.h"
 #include "move_stack.h"
 #include "evaluation.h"
 
-#define FILEMASK_A 0b0000000100000001000000010000000100000001000000010000000100000001ULL
-
-void print_binay_of_uint64(uint64_t num) {
-	for(int i = 63; i >= 0; i--) {
-		wprintf(L"%d", (num & (1ULL << i)) ? 1 : 0);
-		if((i % 8) == 0) wprintf(L" ");
-	}
-	wprintf(L"\n");
-	return;
-}
 
 short num_attacked_pawns(board* board, short turn) {
 	short num = 0, pawn_count = turn == WHITE ? board->white->count.pawns : board->black->count.pawns;
@@ -66,7 +57,6 @@ short num_doubled_blocked_pawns(board* board, short turn) {
 			}
 		}
 	}
-	wprintf(L"num: %d\n", num);
 	return num;
 }
 
@@ -80,11 +70,11 @@ short num_isolated_pawns(board* board, short turn) {
 	for(int i = 0; i < pawn_count; i++) {
 		filemask_combined = 0ULL;
 		get_rank_and_file_from_bitboard((turn == WHITE ? board->white->pawns[i] : board->black->pawns[i]), &file, &rank);
-		if(file > 1) filemask_combined |=  FILEMASK_A<< ((file - 1) - 1);
+		if(file > 1) filemask_combined |= FILEMASK_A<< ((file - 1) - 1);
 		if(file < 8) filemask_combined |= FILEMASK_A << ((file + 1) - 1);
 		num += (combined_board & filemask_combined) ? 0 : 1;
 	}
-	wprintf(L"num: %d\n", num);
+	return num;
 }
 
 
@@ -95,15 +85,16 @@ double get_evaluation_of_board(board* board) {
 	eval += 1 * (num_attacked_pawns(board, WHITE) - num_attacked_pawns(board, BLACK));
 	eval += 3 * (num_attacked_knights(board, WHITE) - num_attacked_knights(board, BLACK));
 	eval += 3 * (num_attacked_bishops(board, WHITE) - num_attacked_bishops(board, BLACK));
+	if(num_attacked_knights(board, WHITE) == 2) eval += 0.25;
+	if(num_attacked_bishops(board, WHITE) == 2) eval += 0.5;
 	eval += 5 * (num_attacked_rooks(board, WHITE) - num_attacked_rooks(board, BLACK));
 	eval += 9 * (num_attacked_queens(board, WHITE) - num_attacked_queens(board, BLACK));
-	eval += 0.1 * (get_all_legal_moves(WHITE, board, legal_moves_array) - get_all_legal_moves(BLACK, board, legal_moves_array));
+	eval += 0.01 * (get_all_legal_moves(WHITE, board, legal_moves_array) - get_all_legal_moves(BLACK, board, legal_moves_array));
 	eval -= 0.5 * (num_doubled_blocked_pawns(board, WHITE) - num_doubled_blocked_pawns(board, BLACK));
 	eval -= 0.5 * (num_isolated_pawns(board, WHITE) - num_isolated_pawns(board, BLACK));
-	/* TODO: center */
+	/* TODO: central pawns, center control */
 	eval -= in_check(WHITE, board);
 	eval += in_check(BLACK, board);
-	wprintf(L"eval: %lf\n", eval);
 	return eval;
 }
 

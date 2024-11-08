@@ -2,27 +2,34 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <wchar.h>
+
 #include "chessboard.h"
+#include "move_stack.h"
+#include "moves.h"
+#include "evaluation.h"
 
-/* Utility Functions / Helper functions */
-// piece color
+/* Piece IDs Functions */
+
+/* get piece color */
 uint8_t piece_color(uint8_t piece_id) {
-    return piece_id & 8 ? BLACK : WHITE;
+	return piece_id & 8 ? BLACK : WHITE;
 }
 
-// piece type
+/* get piece type */
 uint8_t piece_type(uint8_t piece_id) {
-    return piece_id & 7;
+	return piece_id & 7;
 }
 
-// piece number
+/* get piece number */
 uint8_t piece_number(uint8_t piece_id) {
-    return (piece_id & 112) >> 4;
+	return (piece_id & 112) >> 4;
 }
 
 
-// function to get bitboard from rank and file
-uint64_t get_bitboard(uint8_t file, uint8_t rank){
+/* Utility Functions */
+
+/* get bitboard from rank and file */
+uint64_t get_bitboard(uint8_t file, uint8_t rank) {
     // Check if the square is valid
     if(rank < 0 || rank > 8 || file < 0 || file > 8) return 0;
 
@@ -36,7 +43,7 @@ uint64_t get_bitboard(uint8_t file, uint8_t rank){
     return (bitboard << index);
 }
 
-// function to get rank and file from bitboard
+// get rank and file from bitboard
 void get_rank_and_file_from_bitboard(uint64_t bitboard, int *file, int *rank) {
 	if (!bitboard) {
 		*file = 0;
@@ -56,8 +63,7 @@ void get_rank_and_file_from_bitboard(uint64_t bitboard, int *file, int *rank) {
 	*rank = (bit_no / 8) + 1;
 }
 
-
-// function to get square from bitboard
+// get square from bitboard
 square get_square_from_bitboard(uint64_t bitboard) {
     square s;
     int file, rank;
@@ -71,7 +77,7 @@ square get_square_from_bitboard(uint64_t bitboard) {
     return s;
 }
 
-/* function to get compiled postion of white or black pieces*/
+/* get compiled postion of white or black pieces*/
 uint64_t get_type_board(pieces *type, board *b) {
     uint64_t type_board = 0ULL;
 
@@ -107,14 +113,98 @@ uint64_t black_board(board *b) {
     return get_type_board(b->black, b);
 }
 
-/* square table functions */
+void print_square_from_bitboard(uint64_t bitboard) {
+    int file, rank;
+    get_rank_and_file_from_bitboard(bitboard, &file, &rank);
+    wprintf(L"%c%d", 'A' + file - 1, rank);
+    return;
+}
+
+void print_moves(uint64_t moves) {
+    uint64_t bitboard = 1ULL;
+    for(int i=0; i<64; i++) {
+        if(moves & bitboard) {
+            print_square_from_bitboard(bitboard);
+            wprintf(L", ");
+        }
+        bitboard <<= 1;
+    }
+    return;
+}
+
+short *get_pointer_to_piece_counter(board *b, uint8_t piece_id) {
+    short *piece_counter;
+    switch(piece_type(piece_id)) {
+        case PAWN:
+            piece_counter = &b->white->count.pawns;
+            break;
+        case KNIGHT:
+            piece_counter = &b->white->count.knights;
+            break;
+        case BISHOP:
+            piece_counter = &b->white->count.bishops;
+            break;
+        case ROOK:
+            piece_counter = &b->white->count.rooks;
+            break;
+        case QUEEN:
+            piece_counter = &b->white->count.queens;
+            break;
+
+        default:
+            piece_counter = NULL;
+    }
+    return piece_counter;
+}
+
+uint64_t *get_pointer_to_piece_type(short color, uint8_t piece_type, board *b) {
+    uint64_t *piece;
+    switch(piece_type) {
+        case PAWN:
+            piece = color == WHITE ? b->white->pawns : b->black->pawns;
+            break;
+        case KNIGHT:
+            piece = color == WHITE ? b->white->knights : b->black->knights;
+            break;
+        case BISHOP:
+            piece = color == WHITE ? b->white->bishops : b->black->bishops;
+            break;
+        case ROOK:
+            piece = color == WHITE ? b->white->rooks : b->black->rooks;
+            break;
+        case QUEEN:
+            piece = color == WHITE ? b->white->queen : b->black->queen;
+            break;
+        case KING:
+            piece = color == WHITE ? &b->white->king : &b->black->king;
+            break;
+        default:
+            piece = NULL;
+    }
+    return piece;
+}
+
+
+/* Square Table Functions */
+
+// function to initialize the square table
+void init_square_table(board *b) {
+    for(int i=0; i < 8; i++){
+        for(int j=0; j < 8; j++){
+            b->square_table[i][j] = EMPTY_SQUARE;
+        }
+    }
+    return;
+}
+
+/* update the square table */
 void update_square_table(int file, int rank, uint8_t piece, board *b) {
     b->square_table[file-1][rank-1] = piece;
     return;
 }
 
 
-/* Initialization functions */
+/* Chessboard Functions */
 
 // function to initialize the pieces: allocate memory
 void init_pieces(pieces *type) {
@@ -143,22 +233,12 @@ void set_piece_counts(board *b) {
     return;
 }
 
-// function to initialize the square table
-void init_square_table(board *b) {
-    for(int i=0; i < 8; i++){
-        for(int j=0; j < 8; j++){
-            b->square_table[i][j] = EMPTY_SQUARE;
-        }
-    }
-    return;
-}
-
+// Function to place a piece on the board
 void place_piece(uint64_t *piece_board, int file, int rank, uint8_t piece, board *b) {
     *piece_board = get_bitboard(file, rank);
     update_square_table(file, rank, piece, b);
     return;
 }
-
 
 // Function to set the initial postitions of pieces in the chessboard 
 void set_pieces(board *b) {
@@ -219,25 +299,25 @@ void init_board(board *board) {
     return;
 }
 
-
-// Chessboard functions
-
 // Function to print the chessboard
 void print_board(board *b, short turn) {
     wchar_t white_pieces[] = {L'P', L'N', L'B', L'R', L'Q', L'K'};
 	wchar_t black_pieces[] = {L'p', L'n', L'b', L'r', L'q', L'k'};
 	// wchar_t black_pieces[] = {L'♙', L'♘', L'♗', L'♖', L'♕', L'♔',};
 	// wchar_t white_pieces[] = {L'♟', L'♞', L'♝', L'♜', L'♛', L'♚',};
-
+	wchar_t piece_char;
     /*
     WHY & 7? : The piece is stored in the square table as a 8-bit number. The lower 3 bits represent the piece type.
     */
     uint8_t piece, start_rank, end_rank, start_file, end_file;
+	Move _m;
 
     /*
     Note: Context of start and end are from printing pov
     for e.g. for white side, A1 might be the start and H8 might be the end but A8 wil be printed first and H1 will be printed last
     */
+	_m = peek(moves);
+	short int sr = _m.src.rank, sf = _m.src.file , dr = _m.dest.rank, df = _m.dest.file;
     switch (turn){
         case WHITE:{
             start_file = A;
@@ -253,111 +333,42 @@ void print_board(board *b, short turn) {
             end_rank = 8;
             break;
         }
-
         default:
             return;
     }
 	display_evaluation(get_evaluation_of_board(b));
-    for(int rank = start_rank; turn == WHITE ? rank>=end_rank : rank <= end_rank  ; turn == WHITE ? rank-- : rank++){
-        wprintf(L"\t\t+---+---+---+---+---+---+---+---+\n");
+	for(short int rank = start_rank; turn == WHITE ? rank>=end_rank : rank <= end_rank ; turn == WHITE ? rank-- : rank++){
+		wprintf(L"\t\t+---+---+---+---+---+---+---+---+\n");
         wprintf(L"\t\t|");
-        for(int file = start_file; turn == WHITE ? file <= end_file : file >= end_file; turn == WHITE ? file++ : file--){
+        for(short int file = start_file; turn == WHITE ? file <= end_file : file >= end_file; turn == WHITE ? file++ : file--){
             piece = b->square_table[file-1][rank-1];
             /* If piece is present on the square then print the piece*/
-            if(piece)
-                wprintf(L" %lc |", piece & 8 ? black_pieces[(piece & 7)-1] : white_pieces[(piece & 7)-1]);
-
-            /* If square is empty then denote it by printing _ */
-            else
-                wprintf(L"   |");
-            
+            if(piece) {
+				piece_char = piece & 8 ? black_pieces[(piece & 7)-1] : white_pieces[(piece & 7)-1];
+				if(in_check(turn, b) && (turn == WHITE ? piece_char == L'K' : piece_char == L'k')) {wprintf(L"\033[1;31m\b| %lc |\033[0m", piece_char); continue;}
+				if(rank == dr && file == df) wprintf(L"\033[1;33m\b| %lc |\033[0m", piece_char);
+				else wprintf(L" %lc |", piece_char);
+			}
+            /* If square is empty then denote it by printing empty space */
+            else {
+				if(rank == sr && file == sf) wprintf(L"\033[1;33m\b| \u00b7 |\033[0m");
+				else wprintf(L"   |");
+			}
         }
         /* Print rank after printing each line */
 		wprintf(L" %d\n", rank);
-    }
+	}
 
     /* Print files to guide the user */
-    wprintf(L"\t\t+---+---+---+---+---+---+---+---+\n\t\t");
-    wprintf(L" ");
+	wprintf(L"\t\t+---+---+---+---+---+---+---+---+\n");
+    wprintf(L"\t\t ");
 	char _files[] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
 
-    for(int file = start_file;turn == WHITE ? file <= end_file : file >= end_file; turn == WHITE ? file++ : file--){
+    for(short int file = start_file;turn == WHITE ? file <= end_file : file >= end_file; turn == WHITE ? file++ : file--){
         wprintf(L" %c  ", _files[file-1]);
     }
     wprintf(L"\n");
     return;
-}
-
-void print_square_from_bitboard(uint64_t bitboard) {
-    int file, rank;
-    get_rank_and_file_from_bitboard(bitboard, &file, &rank);
-    wprintf(L"%c%d", 'A' + file - 1, rank);
-    return;
-}
-
-void print_moves(uint64_t moves) {
-    uint64_t bitboard = 1ULL;
-    for(int i=0; i<64; i++) {
-        if(moves & bitboard) {
-            print_square_from_bitboard(bitboard);
-            wprintf(L", ");
-        }
-        bitboard <<= 1;
-    }
-    wprintf(L"\n");
-    return;
-}
-
-short *get_pointer_to_piece_counter(board *b, uint8_t piece_id) {
-    short *piece_counter;
-    switch(piece_type(piece_id)) {
-        case PAWN:
-            piece_counter = &b->white->count.pawns;
-            break;
-        case KNIGHT:
-            piece_counter = &b->white->count.knights;
-            break;
-        case BISHOP:
-            piece_counter = &b->white->count.bishops;
-            break;
-        case ROOK:
-            piece_counter = &b->white->count.rooks;
-            break;
-        case QUEEN:
-            piece_counter = &b->white->count.queens;
-            break;
-
-        default:
-            piece_counter = NULL;
-    }
-    return piece_counter;
-}
-
-uint64_t *get_pointer_to_piece_type(short color, uint8_t piece_type, board *b) {
-    uint64_t *piece;
-    switch(piece_type) {
-        case PAWN:
-            piece = color == WHITE ? b->white->pawns : b->black->pawns;
-            break;
-        case KNIGHT:
-            piece = color == WHITE ? b->white->knights : b->black->knights;
-            break;
-        case BISHOP:
-            piece = color == WHITE ? b->white->bishops : b->black->bishops;
-            break;
-        case ROOK:
-            piece = color == WHITE ? b->white->rooks : b->black->rooks;
-            break;
-        case QUEEN:
-            piece = color == WHITE ? b->white->queen : b->black->queen;
-            break;
-        case KING:
-            piece = color == WHITE ? &b->white->king : &b->black->king;
-            break;
-        default:
-            piece = NULL;
-    }
-    return piece;
 }
 
 // pawn promotion : this function needs to be rewritten using realloc, malloc was used for debugging purpose
@@ -413,11 +424,11 @@ uint8_t new_piece(short color, uint8_t _piece_type, uint64_t position_bb, board 
     }
 
     // Debugging print to verify bitboard values
-    for (int i = 0; i < piece_number; i++) {
-        wprintf(L"Piece %d bitboard: ", i + 1);
-        print_square_from_bitboard(new_piece_type_ptr[i]);
-        wprintf(L"\n");
-    }
+    // for (int i = 0; i < piece_number; i++) {
+    //     wprintf(L"Piece %d bitboard: ", i + 1);
+    //     print_square_from_bitboard(new_piece_type_ptr[i]);
+    //     wprintf(L"\n");
+    // }
 
     // Update the square table and return the new piece ID
     square dest = get_square_from_bitboard(position_bb);
@@ -426,5 +437,46 @@ uint8_t new_piece(short color, uint8_t _piece_type, uint64_t position_bb, board 
     return piece_id;
 }
 
+// function to free the memory allocated for the board
+void free_board(board* board) {
+	free(board->white->pawns);
+	board->white->pawns = NULL;
+	
+	free(board->white->knights);
+	board->white->knights = NULL;
+	
+	free(board->white->bishops);
+	board->white->bishops = NULL;
+	
+	free(board->white->rooks);
+	board->white->bishops = NULL;
+	
+	free(board->white->queen);
+	board->white->queen = NULL;
 
-// PENDING: function to free the memory allocated for the board
+	free(board->black->pawns);
+	board->black->pawns = NULL;
+
+	free(board->black->knights);
+	board->black->knights = NULL;
+
+	free(board->black->bishops);
+	board->black->bishops = NULL;
+
+	free(board->black->rooks);
+	board->black->rooks = NULL;
+
+	free(board->black->queen);
+	board->black->queen = NULL;
+
+	free(board->white);
+	board->white = NULL;
+
+	free(board->black);
+	board->black = NULL;
+
+	free(board);
+	board = NULL;
+
+	return;
+}
