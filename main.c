@@ -108,14 +108,15 @@ void single_player(board *b) {
 }
 
 void new_game(board *b) {
-	short turn, status;
+	short turn, status, test_cursor = 0;
 	// init_move_stack(&moves);
 	init_board(b);
 	turn = WHITE;
 
+
 	while (1) {
 		// update_attack_tables(b);
-		clrscr();
+		// clrscr();
 		if (b->attack_tables[WHITE] == 0ULL) {
 			wprintf(L"White is in checkmate\n");
 			break;
@@ -180,6 +181,13 @@ void new_game(board *b) {
 
 		if (status == CHECKMATE_MOVE || status == STALEMATE_MOVE) {
 			break;
+		}
+
+		test_cursor++;
+		if(test_cursor%3 ==0) {
+			undo_move(b);
+			wprintf(L"Move undone\n");
+			continue;
 		}
 
 		turn = !turn;

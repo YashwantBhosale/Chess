@@ -12,7 +12,7 @@ void init_move_stack(move_stack *s) {
 	}
 	s->top = NULL;
 	s->size = 0;
-	wprintf(L"Initialization successful!\n");
+	// wprintf(L"Initialization successful!\n");
 	return;
 }
 

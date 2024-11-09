@@ -1523,24 +1523,246 @@ short make_move(square src, square dest, short turn, board *b) {
 	return status;
 }
 
-void unmake_move(board *b) {
+bool remove_memory_for_promoted_piece(uint8_t promoted_piece, board *b) {
+	short *counter = get_pointer_to_piece_counter(b, promoted_piece);
+	*counter -= 1;
+	uint64_t *type_ptr = get_pointer_to_piece_type(piece_color(promoted_piece), QUEEN, b);
+	type_ptr = (uint64_t *)realloc(type_ptr, *counter * sizeof(uint64_t));
+
+	if(!type_ptr)
+		return false;
+	
+	return true;
+}
+
+void undo_promotion(Move last_move, board *b) {
+	// restore the pawn to the source square
+	uint64_t *pawn_ptr = get_pointer_to_piece(last_move.piece, b);
+	*pawn_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+	update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+
+	// remove the promoted piece
+	uint64_t *promoted_piece_ptr = get_pointer_to_piece(last_move.promoted_piece, b);
+	*promoted_piece_ptr = 0ULL;
+	update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
+
+	// deallocate memory for the promoted piece
+	remove_memory_for_promoted_piece(last_move.promoted_piece, b);
+
+	// restore castle rights and attack tables
+	b->castle_rights = last_move.castle_rights;
+	b->attack_tables[0] = last_move.attack_tables[0];
+	b->attack_tables[1] = last_move.attack_tables[1];
+}
+
+/* SHOULD RETURN STATUS OF UNDO MOVE */
+void undo_move(board *b){
+	// PENDING: check if all the essential fields are present / valid
 	Move last_move = pop(b->moves);
 
-	/*
-		information we have about the last move: 
-		typedef struct {
-			square src;
-			square dest;
-			uint8_t piece;
-			uint8_t captured_piece;
-			uint8_t promoted_piece;
-			uint8_t flags;
+	switch(last_move.flags){
+		case NORMAL_MOVE: {
+			/*
+				1. restore the piece bitboard to the bitboard of the source square
+				2. update the square table to reflect it
+				3. restore the destination square to empty
+				4. (optional) restore castle rights and attack tables
+			*/
+			uint64_t *piece_ptr = get_pointer_to_piece(last_move.piece, b);
+			*piece_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+			update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+			update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
+			
+			b->castle_rights = last_move.castle_rights;
+			b->attack_tables[0] = last_move.attack_tables[0];
+			b->attack_tables[1] = last_move.attack_tables[1];
+			break;
+		}
 
-			uint8_t castle_rights; // castle rights before making the move
-			uint64_t attack_tables[2]; // attack tables before making the move
-		} Move;	
-	*/
+		case CAPTURE_MOVE: {
+			/*
+				1. restore the piece bitboard to the bitboard of the source square
+				2. update the square table to reflect it
+				3. restore the bitboard of the captured piece to the destination square
+				4. update the square table to reflect it
+				5. (optional) restore castle rights and attack tables
+			*/
+			uint64_t *piece_ptr = get_pointer_to_piece(last_move.piece, b);
+			uint64_t *dest_piece_ptr = get_pointer_to_piece(last_move.captured_piece, b);
+			
+			// if missing piece then return
+			if(!dest_piece_ptr)
+				return;
+
+			*piece_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+			update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+
+			*dest_piece_ptr = get_bitboard(last_move.dest.file, last_move.dest.rank);
+			update_square_table(last_move.dest.file, last_move.dest.rank, last_move.captured_piece, b);
+
+			b->castle_rights = last_move.castle_rights;
+			b->attack_tables[0] = last_move.attack_tables[0];
+			b->attack_tables[1] = last_move.attack_tables[1];
+
+			// PENDING: REMOVE THE CAPTURED PIECE FROM THE CAPTURED PIECES ARRAY AND DECREMENT THE COUNT
+			b->captured_pieces_count[!piece_color(last_move.captured_piece)]--;
+			break;
+		}
+
+		case EN_PASSANT_MOVE: {
+			/*
+				1. restore the piece bitboard to the bitboard of the source square
+				2. update the square table to reflect it
+				3. restore the destination square to empty
+				4. restore bitboard of the captured pawn to the square where it was captured
+				5. update the square table to reflect it
+				6. (optional) restore castle rights and attack tables
+			*/
+			uint64_t *piece_ptr = get_pointer_to_piece(last_move.piece, b);
+			uint64_t *dest_piece_ptr = get_pointer_to_piece(last_move.captured_piece, b);
+
+			// if missing piece then return
+			if(!dest_piece_ptr || !piece_ptr)
+				return;
+
+			*piece_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+			update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+			update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
+
+			*dest_piece_ptr = get_bitboard(last_move.dest.file, last_move.src.rank);
+			update_square_table(last_move.dest.file, last_move.src.rank, last_move.captured_piece, b);
+
+			b->castle_rights = last_move.castle_rights;
+			b->attack_tables[0] = last_move.attack_tables[0];
+			b->attack_tables[1] = last_move.attack_tables[1];
+
+			// PENDING: REMOVE THE CAPTURED PIECE FROM THE CAPTURED PIECES ARRAY AND DECREMENT THE COUNT
+			break;
+		}
+
+		case CASTLE_MOVE: {
+			/*
+				1. restore the king bitboard to the bitboard of the source square
+				2. update the square table to reflect it
+				3. identify the rook that was moved
+				4. restore the rook bitboard to the square where it was before castling (king side / queen side)
+				5. update the square table to reflect it
+				6. (important) restore castle rights and attack tables
+			*/
+			uint64_t *king_ptr = get_pointer_to_piece(last_move.piece, b);
+			uint64_t *rook_ptr = NULL;
+
+			// if missing piece then return
+			if(!king_ptr)
+				return;
+
+			*king_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+			update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+			update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
+
+			// king side castle
+			if(last_move.dest.file == G) {
+				uint8_t moved_rook = b->square_table[F - 1][last_move.src.rank - 1];
+				rook_ptr = get_pointer_to_piece(moved_rook, b);
+				*rook_ptr = get_bitboard(H, last_move.src.rank);
+				update_square_table(H, last_move.src.rank, moved_rook, b);
+				update_square_table(F, last_move.src.rank, EMPTY_SQUARE, b);
+			}
+
+			// queen side castle
+			else if(last_move.dest.file == C) {
+				uint8_t moved_rook = b->square_table[D - 1][last_move.src.rank - 1];
+				rook_ptr = get_pointer_to_piece(moved_rook, b);
+				*rook_ptr = get_bitboard(A, last_move.src.rank);
+				update_square_table(A, last_move.src.rank, moved_rook, b);
+				update_square_table(D, last_move.src.rank, EMPTY_SQUARE, b);
+			}
+
+			b->castle_rights = last_move.castle_rights;
+			b->attack_tables[0] = last_move.attack_tables[0];
+			b->attack_tables[1] = last_move.attack_tables[1];
+			break;
+		}
+
+		/*
+			flow for undoing promotion move:
+			1. restore the pawn bitboard to the bitboard of the source square
+			2. update the square table to reflect it
+			3. remove the promoted piece from the board // this will involve freeing the memory allocated for the promoted piece
+			4. update the square table to reflect it
+			5. update the count of the promoted piece type
+			5. (optional) restore castle rights and attack tables
+		
+			PENDING: IF THE MOVE IS PROMOTION + CAPTURE THEN WE NEED TO RESTORE THE CAPTURED PIECE AS WELL
+		*/
 	
-	
-	 
+		case WHITE_PROMOTES_TO_KNIGHT:
+		case WHITE_PROMOTES_TO_BISHOP:
+		case WHITE_PROMOTES_TO_ROOK:
+		case WHITE_PROMOTES_TO_QUEEN:
+		case BLACK_PROMOTES_TO_KNIGHT:
+		case BLACK_PROMOTES_TO_BISHOP:
+		case BLACK_PROMOTES_TO_ROOK:
+		case BLACK_PROMOTES_TO_QUEEN: {
+			undo_promotion(last_move, b);
+			break;
+		}
+
+	}
 }
+
+
+
+/*
+	SCRAP:
+	case WHITE_PROMOTES_TO_KNIGHT: {
+			uint64_t *pawn_ptr = get_pointer_to_piece(last_move.piece, b);
+			uint64_t *promoted_piece_ptr = get_pointer_to_piece(last_move.promoted_piece, b);
+
+			// if missing piece then return
+			if(!pawn_ptr || !promoted_piece_ptr)
+				return;
+
+			*pawn_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+			update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+
+			*promoted_piece_ptr = 0ULL;
+			update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
+
+			b->white->count.knights--;
+
+			b->castle_rights = last_move.castle_rights;
+			b->attack_tables[0] = last_move.attack_tables[0];
+			b->attack_tables[1] = last_move.attack_tables[1];
+			break;
+		}
+		case WHITE_PROMOTES_TO_BISHOP: {
+			uint64_t *pawn_ptr = get_pointer_to_piece(last_move.piece, b);
+			uint64_t *promoted_piece_ptr = get_pointer_to_piece(last_move.promoted_piece, b);
+
+			// if missing piece then return
+			if(!pawn_ptr || !promoted_piece_ptr)
+				return;
+
+			*pawn_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+			update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+
+			*promoted_piece_ptr = 0ULL;
+			update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
+
+			b->white->count.bishops--;
+
+			b->castle_rights = last_move.castle_rights;
+			b->attack_tables[0] = last_move.attack_tables[0];
+			b->attack_tables[1] = last_move.attack_tables[1];
+			break;
+		}
+		case WHITE_PROMOTES_TO_ROOK: {
+			
+			break;
+		}
+		case WHITE_PROMOTES_TO_QUEEN: {
+			
+			break;
+		}
+*/

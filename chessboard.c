@@ -364,7 +364,7 @@ void print_moves(uint64_t moves) {
         }
         bitboard <<= 1;
     }
-    wprintf(L"\n");
+    // wprintf(L"\n");
     return;
 }
 

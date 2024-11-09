@@ -229,6 +229,8 @@ void get_rank_and_file_from_bitboard(uint64_t bitboard, int *file, int *rank);
 square get_square_from_bitboard(uint64_t bitboard);
 uint64_t get_bitboard(uint8_t file, uint8_t rank);
 uint8_t generate_id_for_promoted_piece(uint8_t piece_type, short color, board *b);
+short *get_pointer_to_piece_counter(board *b, uint8_t piece_id);
+uint64_t *get_pointer_to_piece_type(short color, uint8_t piece_type, board *b);
 
 // for debugging
 void print_square_from_bitboard(uint64_t bitboard);

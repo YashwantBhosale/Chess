@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <stdbool.h>
-typedef struct {
+typedef struct Move {
 	square src;
 	square dest;
 	uint8_t piece;
