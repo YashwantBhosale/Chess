@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <wchar.h>
 #include "chessboard.h"
+#include "evaluation.h"
+#include "moves.h"
+#include "move_stack.h"
 
 /* Utility Functions / Helper functions */
 // piece color
@@ -204,6 +207,7 @@ void init_board(board *board) {
 
     board->black = (pieces *)malloc(sizeof(pieces));
     board->white = (pieces *)malloc(sizeof(pieces));
+    board->moves = (move_stack *)malloc(sizeof(move_stack));
 
     init_pieces(board->white); /* Allocate memory for white pieces */
     init_pieces(board->black); /* Allocate memory for black pieces */
@@ -212,22 +216,76 @@ void init_board(board *board) {
     // Initialize the square table
     init_square_table(board);
     set_pieces(board); /* Set initial positions of pieces */
+    init_move_stack(board->moves);
 
     board->attack_tables[WHITE] = 4294901760; // initial attack table for white hardcoded
 	board->attack_tables[BLACK] = 281470681743360;// initial attack table for black hardcoded
     board->castle_rights = 0b01110111;
+
+    board->captured_pieces_count[WHITE] = 0;
+    board->captured_pieces_count[BLACK] = 0;
+
+    for(int i=0; i<16; i++) {
+        board->captured_pieces[WHITE][i] = 0;
+        board->captured_pieces[BLACK][i] = 0;
+    }
     return;
 }
 
 
 // Chessboard functions
+void print_piece_from_id(uint8_t id) {
+    switch(piece_type(id)) {
+        case PAWN:
+            wprintf(L"♙ ");
+            break;
+        case KNIGHT:
+            wprintf(L"♘ ");
+            break;
+        case BISHOP:
+            wprintf(L"♗ ");
+            break;
+        case ROOK:
+            wprintf(L"♖ ");
+            break;
+        case QUEEN:
+            wprintf(L"♕ ");
+            break;
+        case KING:
+            wprintf(L"♔ ");
+            break;
+        default:
+            break;
+    }
+    return;
+}
+
+void print_captured_pieces(board *b) {
+    // wchar_t black_pieces[] = {L'♙', L'♘', L'♗', L'♖', L'♕', L'♔',};
+	// wchar_t white_pieces[] = {L'♟', L'♞', L'♝', L'♜', L'♛', L'♚',};
+
+    wprintf(L"Captured pieces: \n");
+    wprintf(L"White: ");
+    for(int i=0; i<b->captured_pieces_count[WHITE]; i++) {
+       print_piece_from_id(b->captured_pieces[WHITE][i]);
+    }
+    wprintf(L"\n");
+
+    wprintf(L"Black: ");
+    for(int i=0; i<b->captured_pieces_count[BLACK]; i++) {
+       print_piece_from_id(b->captured_pieces[BLACK][i]);
+    }
+    wprintf(L"\n");
+    return;
+}
+
 
 // Function to print the chessboard
 void print_board(board *b, short turn) {
-    wchar_t white_pieces[] = {L'P', L'N', L'B', L'R', L'Q', L'K'};
-	wchar_t black_pieces[] = {L'p', L'n', L'b', L'r', L'q', L'k'};
-	// wchar_t black_pieces[] = {L'♙', L'♘', L'♗', L'♖', L'♕', L'♔',};
-	// wchar_t white_pieces[] = {L'♟', L'♞', L'♝', L'♜', L'♛', L'♚',};
+    // wchar_t white_pieces[] = {L'P', L'N', L'B', L'R', L'Q', L'K'};
+	// wchar_t black_pieces[] = {L'p', L'n', L'b', L'r', L'q', L'k'};
+	wchar_t black_pieces[] = {L'♙', L'♘', L'♗', L'♖', L'♕', L'♔',};
+	wchar_t white_pieces[] = {L'♟', L'♞', L'♝', L'♜', L'♛', L'♚',};
 
     /*
     WHY & 7? : The piece is stored in the square table as a 8-bit number. The lower 3 bits represent the piece type.
@@ -258,6 +316,8 @@ void print_board(board *b, short turn) {
             return;
     }
 	display_evaluation(get_evaluation_of_board(b));
+
+    print_captured_pieces(b);
     for(int rank = start_rank; turn == WHITE ? rank>=end_rank : rank <= end_rank  ; turn == WHITE ? rank-- : rank++){
         wprintf(L"\t\t+---+---+---+---+---+---+---+---+\n");
         wprintf(L"\t\t|");
@@ -360,18 +420,33 @@ uint64_t *get_pointer_to_piece_type(short color, uint8_t piece_type, board *b) {
     return piece;
 }
 
-// pawn promotion : this function needs to be rewritten using realloc, malloc was used for debugging purpose
-uint8_t new_piece(short color, uint8_t _piece_type, uint64_t position_bb, board *b) {
+uint8_t generate_id_for_promoted_piece(uint8_t piece_type, short color, board *b) {
     uint8_t piece_color = color == WHITE ? 0 : 8;
-
-    // Get the pointer to the piece count and increment it
-    short *piece_counter = get_pointer_to_piece_counter(b, _piece_type);
+    short *piece_counter = get_pointer_to_piece_counter(b, piece_type);
     if (!piece_counter) return 0;
     (*piece_counter)++;
     uint8_t piece_number = *piece_counter;
+    return (piece_color | piece_type | ((piece_number - 1) << 4));
+}
 
-    // Calculate the piece id
-    uint8_t piece_id = piece_color | _piece_type | ((piece_number - 1) << 4);
+// pawn promotion : this function needs to be rewritten using realloc, malloc was used for debugging purpose
+uint8_t new_piece(short color, uint8_t _piece_type, uint64_t position_bb, board *b) {
+    /*
+        uint8_t piece_color = color == WHITE ? 0 : 8;
+
+        // Get the pointer to the piece count and increment it
+        short *piece_counter = get_pointer_to_piece_counter(b, _piece_type);
+        if (!piece_counter) return 0;
+        (*piece_counter)++;
+        uint8_t piece_number = *piece_counter;
+
+        // Calculate the piece id
+        uint8_t piece_id = piece_color | _piece_type | ((piece_number - 1) << 4);
+    */
+
+    // Generate the piece id for the promoted piece
+    uint8_t piece_id = generate_id_for_promoted_piece(_piece_type, color, b);
+    uint8_t piece_number = (piece_id & 0b01110000) >> 4;
 
     // Get the pointer to the piece type array
     uint64_t *piece_type_ptr = get_pointer_to_piece_type(color, _piece_type, b);

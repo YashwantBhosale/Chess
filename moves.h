@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdint.h>
 
 #define NORMAL_MOVE 0
@@ -32,3 +33,5 @@ void update_attack_tables(board *b, short turn);
 short make_move(square src, square dest, short turn, board *board);
 board* copy_board(board *b);
 int get_all_legal_moves(uint8_t color, board* b, short int legal_moves_array[MAX_LEGAL_MOVES][4]);
+void get_player_board_and_opp_board(short color, board *b, uint64_t *pb, uint64_t *ob);
+bool in_check(short color, board *b);

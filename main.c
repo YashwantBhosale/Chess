@@ -13,7 +13,7 @@
 #define TIME_LOWER_BOUND 0.01
 #define TIME_UPPER_BOUND 0.15
 
-move_stack moves;
+// move_stack moves;
 
 void clrscr() {
 	wprintf(L"\033[H\033[J");
@@ -43,7 +43,7 @@ int randomNumber(int l, int h) {
 
 void single_player(board *b) {
 	short turn, status, legal_moves_array[MAX_LEGAL_MOVES][4];
-	init_move_stack(&moves);
+	// init_move_stack(&moves);
 	init_board(b);
 	turn = WHITE;
 	square src, dest;
@@ -57,6 +57,7 @@ void single_player(board *b) {
 			wprintf(L"Black is in checkmate\n");
 			break;
 		}
+		wprintf(L"Everything is fine\n");
 		print_board(b, turn);
 		wprintf(L"%s's turn\n", turn == WHITE ? "White" : "Black");
 
@@ -108,7 +109,7 @@ void single_player(board *b) {
 
 void new_game(board *b) {
 	short turn, status;
-	init_move_stack(&moves);
+	// init_move_stack(&moves);
 	init_board(b);
 	turn = WHITE;
 
@@ -188,8 +189,8 @@ void new_game(board *b) {
 int main() {
 	setlocale(LC_CTYPE, "");
 	board *b = (board *)malloc(sizeof(board));
-	// new_game(b);
-	single_player(b);
+	new_game(b);
+	// single_player(b);
 	free(b);
 	return 0;
 }

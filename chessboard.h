@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+typedef struct move_stack move_stack;
+
 /* 
 COLORS: 
 In general, for all functions white is enumerated as 0 and black is enumerated
@@ -192,14 +194,17 @@ typedef struct pieces {
 */
 
 
+
 typedef struct {
     pieces *white, *black;
     uint8_t square_table[8][8];
 
-    short en_pass_pawn;
-    uint64_t en_passant;
     uint8_t castle_rights;
     uint64_t attack_tables[2];
+    move_stack *moves;
+
+    uint8_t captured_pieces[2][16]; // captured_pieces[WHITE], captured_piece[BLACK]
+    short captured_pieces_count[2];
 } board;
 
 // structure for a square
@@ -223,6 +228,7 @@ void update_square_table(int file, int rank, uint8_t piece, board *b);
 void get_rank_and_file_from_bitboard(uint64_t bitboard, int *file, int *rank);
 square get_square_from_bitboard(uint64_t bitboard);
 uint64_t get_bitboard(uint8_t file, uint8_t rank);
+uint8_t generate_id_for_promoted_piece(uint8_t piece_type, short color, board *b);
 
 // for debugging
 void print_square_from_bitboard(uint64_t bitboard);
