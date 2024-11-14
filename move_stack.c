@@ -12,7 +12,6 @@ void init_move_stack(move_stack *s) {
 	}
 	s->top = NULL;
 	s->size = 0;
-	// wprintf(L"Initialization successful!\n");
 	return;
 }
 
@@ -30,7 +29,6 @@ Move peek(move_stack s) {
 		Move m = {0};
 		return m;
 	}
-
 	return (s.top)->move;
 }
 

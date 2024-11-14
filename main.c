@@ -1,27 +1,22 @@
-#include <locale.h>
-#include <stdint.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include <time.h>
+#include <string.h>
 #include <wchar.h>
+#include <limits.h>
 
-
+#include <locale.h>
 #include "chessboard.h"
-#include "move_stack.h"
+#include "move_types.h"
 #include "moves.h"
+#include "move_stack.h"
+#include "move_array.h"
+#include "engine.h"
+#include "evaluation.h"
 
-#define TIME_LOWER_BOUND 0.01
-#define TIME_UPPER_BOUND 0.15
-
-// move_stack moves;
-
-void clrscr() {
-	wprintf(L"\033[H\033[J");
-}
-
-void clear_screen() {
-	system("clear");
-}
+#define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+#define TEST_FEN "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1"
+// #define STARTING_FEN "r1bqkb1r/ppp1ppPp/2n2n2/3p4/5p2/8/PPPPP2P/RNBQKBNR w KQkq - 0 6"
 
 square read_square() {
 	char file;
@@ -30,196 +25,133 @@ square read_square() {
 	scanf(" %c%d", &file, &rank);
 	s.file = file - 'a' + 1;
 	s.rank = rank;
+	if (!validate_square(s)) {
+		return read_square();
+	}
 	return s;
 }
 
-int randomNumber(int l, int h) {
-	// Seed the random number generator with the current time
-	srand(time(0));
-
-	// Generate a random number in the range [l, h]
-	return l + rand() % (h - l + 1);
+void print_squares_from_bb(uint64_t bb) {
+	for (int i = 0; i < 64; i++) {
+		if (bb & (1ULL << i)) {
+			int file = i % 8;
+			int rank = i / 8;
+			wprintf(L"%c%d ", file + 'a', rank + 1);
+		}
+	}
+	wprintf(L"\n");
 }
 
-void single_player(board *b) {
-	short turn, status, legal_moves_array[MAX_LEGAL_MOVES][4];
-	// init_move_stack(&moves);
-	init_board(b);
-	turn = WHITE;
-	square src, dest;
+void clrscr() {
+	system("clear");
+}
+
+void two_player(board *b) {
+	if (!b) return;
+
+	load_fen(b, STARTING_FEN);
+	short turn = WHITE;
+	update_type_board(b, turn);
+	wprintf(L"White Board: \n");
+	print_squares_from_bb(b->white_board);
+	wprintf(L"Black Board: \n");
+	print_squares_from_bb(b->black_board);
+
+	wprintf(L"rooks = %d\n", b->white->count.rooks);
+	update_attacks(b);
 
 	while (1) {
 		clrscr();
-		if (b->attack_tables[WHITE] == 0ULL) {
-			wprintf(L"White is in checkmate\n");
-			break;
-		} else if (b->attack_tables[BLACK] == 0ULL) {
-			wprintf(L"Black is in checkmate\n");
-			break;
-		}
-		wprintf(L"Everything is fine\n");
+
 		print_board(b, turn);
-		wprintf(L"%s's turn\n", turn == WHITE ? "White" : "Black");
+		filter_legal_moves(b, turn);
 
-		if (turn == WHITE) {
-			src = read_square();
-			dest = read_square();
+		if (turn == WHITE && b->white_legal_moves->move_count == 0) {
+			wprintf(L"Black wins\n");
+			return;
 		}
-		else if (turn == BLACK) {
-			int upper_bound = get_all_legal_moves(BLACK, b, legal_moves_array) - 1;
-
-			int rand = randomNumber(0, upper_bound);
-			src.file = legal_moves_array[rand][0];
-			src.rank = legal_moves_array[rand][1];
-			dest.file = legal_moves_array[rand][2];
-			dest.rank = legal_moves_array[rand][3];
-
-			wprintf(L"Computer's move: %c%d to %c%d\n", src.file + 'a' - 1, src.rank, dest.file + 'a' - 1, dest.rank);
+		if (turn == BLACK && b->black_legal_moves->move_count == 0) {
+			wprintf(L"White wins\n");
+			return;
 		}
 
-		status = make_move(src, dest, turn, b);
-		switch (status) {
-			case NORMAL_MOVE:
-				break;
-			case CAPTURE_MOVE:
-				wprintf(L"Captured piece\n");
-				break;
-			case CHECK_MOVE:
-				wprintf(L"Check\n");
-				break;
-			case CHECKMATE_MOVE:
-				wprintf(L"Checkmate\n");
-				break;
-			case STALEMATE_MOVE:
-				wprintf(L"Stalemate\n");
-				break;
-			case INVALID_MOVE:
-				wprintf(L"Invalid move in main menu\n");
-				break;
-		}
+		/*
+			wprintf(L"White Attacks: \n");
+			print_movelist(b->white_attacks);
+			wprintf(L"\n");
+			wprintf(L"Black Attacks: \n");
+			print_movelist(b->black_attacks);
+		*/
 
-		update_attack_tables(b, turn);
-		if (status == CHECKMATE_MOVE || status == STALEMATE_MOVE) {
-			break;
-		}
+		wprintf(L"%s's Turn: ", turn == WHITE ? "White" : "Black");
+		square src = read_square();
+		square dest = read_square();
+
+		int status = make_move(src, dest, turn, b, false);
+		if (status == INVALID_MOVE)
+			continue;
+
+		update_attacks(b);
 
 		turn = !turn;
 	}
+	return;
 }
 
-void new_game(board *b) {
-	short turn, status, test_cursor = 0;
-	// init_move_stack(&moves);
-	init_board(b);
-	turn = WHITE;
+void single_player(board *b) {
+	if (!b) return;
 
+	load_fen(b, STARTING_FEN);
+	short turn = WHITE;
+	update_attacks(b);
 
 	while (1) {
-		// update_attack_tables(b);
-		// clrscr();
-		if (b->attack_tables[WHITE] == 0ULL) {
-			wprintf(L"White is in checkmate\n");
-			break;
+		clrscr();
+    	print_board(b, BLACK);
+		filter_legal_moves(b, turn);
+		if (turn == WHITE && b->white_legal_moves->move_count == 0) {
+			wprintf(L"Black wins\n");
+			return;
+		}
+		if (turn == BLACK && b->black_legal_moves->move_count == 0) {
+			wprintf(L"White wins\n");
+			return;
 		}
 
-		else if (b->attack_tables[BLACK] == 0ULL) {
-			wprintf(L"Black is in checkmate\n");
-			break;
+		wprintf(L"%s's Turn: \n", turn == WHITE ? "Engine" : "Black");
+
+		if (turn == BLACK) {
+			square src = read_square();
+			square dest = read_square();
+
+			int status = make_move(src, dest, turn, b, false);
+			if (status == INVALID_MOVE) {
+				wprintf(L"invalid move\n");
+				continue;
+			}
+		} else {
+			wprintf(L"Thinking...\n");
+            uint64_t lookup_table_backup[97];
+            memcpy(lookup_table_backup, turn == WHITE ? b->white_lookup_table : b->black_lookup_table, sizeof(lookup_table_backup));
+			evaluated_move eval = minimax(b, 3, turn, INT_MIN, INT_MAX);
+
+            memcpy(turn == WHITE ? b->white_lookup_table : b->black_lookup_table, lookup_table_backup, sizeof(lookup_table_backup));
+			wprintf(L"Best move: ");
+			wprintf(L"%c%d -> %c%d\n", eval.best_move.src.file + 'a' - 1, eval.best_move.src.rank, eval.best_move.dest.file + 'a' - 1, eval.best_move.dest.rank);
+
+
+			make_move(eval.best_move.src, eval.best_move.dest, turn, b, true);
 		}
 
-		print_board(b, turn);
-		wprintf(L"%s's turn\n", turn == WHITE ? "White" : "Black");
-
-		// printf("Enter the source square: ");
-		square src = read_square();
-		// printf("Enter the destination square: ");
-		square dest = read_square();
-		status = make_move(src, dest, turn, b);
-
-		switch (status) {
-			case NORMAL_MOVE:
-				break;
-			case CAPTURE_MOVE:
-				wprintf(L"Captured piece\n");
-				break;
-			case CHECK_MOVE:
-				wprintf(L"Check\n");
-				break;
-			case CHECKMATE_MOVE:
-				wprintf(L"Checkmate\n");
-				break;
-			case STALEMATE_MOVE:
-				wprintf(L"Stalemate\n");
-				break;
-			case INVALID_MOVE:
-				wprintf(L"Invalid move in main menu\n");
-				break;
-			default:
-				break;
-		}
-		/* print castling rights */
-		// wprintf(L"castling rights: %u\n", b->castle_rights);
-
-		update_attack_tables(b, turn);
-		if (b->attack_tables[WHITE] == 0ULL) {
-			// clrscr();
-			print_board(b, turn);
-			wprintf(L"%s is in checkmate 2\n", "White");
-			break;
-		}
-
-		else if (b->attack_tables[BLACK] == 0ULL) {
-			// clrscr();
-			print_board(b, turn);
-			wprintf(L"%s is in checkmate\n", "Black");
-			break;
-		}
-
-		if (status == INVALID_MOVE) {
-			continue;
-		}
-
-		if (status == CHECKMATE_MOVE || status == STALEMATE_MOVE) {
-			break;
-		}
-
-		test_cursor++;
-		if(test_cursor%3 ==0) {
-			undo_move(b);
-			wprintf(L"Move undone\n");
-			continue;
-		}
-
+		update_attacks(b);
 		turn = !turn;
 	}
 }
 
 int main() {
-	setlocale(LC_CTYPE, "");
-	board *b = (board *)malloc(sizeof(board));
-	new_game(b);
-	// single_player(b);
-	free(b);
+	setlocale(LC_ALL, "");
+	board b;
+	// two_player(&b);
+	single_player(&b);
 	return 0;
 }
-
-/*
-
-int main() {
-    setlocale(LC_CTYPE, "");
-    board b, *simulation_board;
-    init_board(&b);
-    print_board(&b, WHITE);
-
-    square src, dest;
-    src.file = E;
-    src.rank = 2;
-
-    dest.file = E;
-    dest.rank = 4;
-
-    short status = make_move(src, dest, WHITE, &b);
-    print_board(&b, BLACK);
-    return 0;
-}
-*/

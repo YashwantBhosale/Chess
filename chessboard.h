@@ -1,45 +1,44 @@
-#include <stdio.h>
-#include <stdlib.h>
+#ifndef CHESSBOARD_H
+#define CHESSBOARD_H
 #include <stdint.h>
+// #include "move_list.h"
 
-typedef struct move_stack move_stack;
-
-/* 
-COLORS: 
+/*
+COLORS:
 In general, for all functions white is enumerated as 0 and black is enumerated
 as 1.
 */
 enum colors {
-    WHITE = 0,
-    BLACK = 1
+	WHITE = 0,
+	BLACK = 1
 };
 
 /*
 FILES:
 Throughout the code files are represented by numbers. To improve readability,
-they are enumerated so that we can understand that we are referring to file 
+they are enumerated so that we can understand that we are referring to file
 on the chessboard.
 */
 enum Files {
-    A = 1,
-    B = 2,
-    C = 3,
-    D = 4,
-    E = 5,
-    F = 6,
-    G = 7,
-    H = 8
+	A = 1,
+	B = 2,
+	C = 3,
+	D = 4,
+	E = 5,
+	F = 6,
+	G = 7,
+	H = 8
 };
 
-/*  
+/*
     PIECE IDs:
     Why piece ids?
-    The design of bitboards is piece centric, which means that the piece knows 
+    The design of bitboards is piece centric, which means that the piece knows
     its position on the board. But whenever we place a piece on the board, we
     often need to know which piece is at which square. So a design which may
     not be most efficient but is most intuitive is to have a piece id which
-    is a 8 bit number, with obviously special format which will allow us to 
-    keep track of what piece is at what square. Most significant use of this 
+    is a 8 bit number, with obviously special format which will allow us to
+    keep track of what piece is at what square. Most significant use of this
     design is when a particular piece needs iformation about the piece on some
     other square.
 
@@ -48,12 +47,12 @@ enum Files {
 
     Potential issue:
     After pawn promotion, we may have more pieces whose ids are not defined here.
-    so our code needs to be robust enough to handle that without creating any 
+    so our code needs to be robust enough to handle that without creating any
     issues.
 
-    format : XNNN CTTT
-    C -> piece color : 0 -> white, 1 -> black
-    TTT -> piece type : 
+    format : PNNN CTTT
+    C -> piece color : 0 -> white, 1 -> black, P-> promoted
+    TTT -> piece type :
     000 -> no piece
     001 -> pawn
     010 -> knight
@@ -62,7 +61,7 @@ enum Files {
     101 -> queen
     110 -> king
     NNN -> piece number : 000 -> 1, ..., 111 -> 8
-
+    01101000
     white:               black:
     0000 0001 -> pawn    0000 1001 -> pawn
     0001 0001 -> pawn    0001 1001 -> pawn
@@ -133,6 +132,14 @@ enum Files {
 #define BLACK_QUEEN 13
 #define BLACK_KING 14
 
+// piece types
+enum { PAWN = 1,
+	   KNIGHT = 2,
+	   BISHOP = 3,
+	   ROOK = 4,
+	   QUEEN = 5,
+	   KING = 6 };
+
 
 // Please refer to the moves.c validate_castle function for the explanation of the castle rights
 #define WHITE_CASTLE_RIGHTS 0b00000111
@@ -143,21 +150,6 @@ enum Files {
 
 #define BLACK_KING_SIDE_CASTLE_RIGHTS 0b01010000
 #define BLACK_QUEEN_SIDE_CASTLE_RIGHTS 0b01100000
-
-#define MAX_LEGAL_MOVES 218
-
-// functions for piece ids
-uint8_t piece_color(uint8_t piece_id);
-uint8_t piece_type(uint8_t piece_id);
-uint8_t piece_number(uint8_t piece_id);
-
-enum { PAWN = 1,
-	   KNIGHT = 2,
-	   BISHOP = 3,
-	   ROOK = 4,
-	   QUEEN = 5,
-	   KING = 6 };
-
 /*
     Structure for pieces:
     * Design:
@@ -166,23 +158,27 @@ enum { PAWN = 1,
     This is in alignment with the pawn promotion rule in chess.
 
     * purpose:
-    The purpose of defining structure for pieces is because we have two types of 
+    The purpose of defining structure for pieces is because we have two types of
     pieces, black and white. So instead of defining them seperately it is convenient
     to define them in a single structure.
 */
+typedef struct move_stack move_stack;
+
+struct MoveList;
+
 typedef struct {
-    // keep count of the number of pieces of each type
-    short pawns, knights, bishops, rooks, queens;
+	// keep count of the number of pieces of each type
+	short pawns, knights, bishops, rooks, queens;
 } piece_count;
 
 typedef struct pieces {
-    uint64_t *pawns; // array of 8 pawns
-    uint64_t *knights; // array of 2 knights
-    uint64_t *bishops; // array of 2 bishops
-    uint64_t *rooks; // array of 2 rooks
-    uint64_t *queen; // array of 1 queen
-    uint64_t king; // 1 king
-    piece_count count;
+	uint64_t *pawns;    // array of 8 pawns
+	uint64_t *knights;  // array of 2 knights
+	uint64_t *bishops;  // array of 2 bishops
+	uint64_t *rooks;    // array of 2 rooks
+	uint64_t *queen;    // array of 1 queen
+	uint64_t king;      // 1 king
+	piece_count count;
 } pieces;
 
 /*
@@ -193,45 +189,64 @@ typedef struct pieces {
     ... More to be added as we progress. (like castling rights, en passant square etc.)
 */
 
-
-
 typedef struct {
-    pieces *white, *black;
-    uint8_t square_table[8][8];
+	pieces *white, *black;
+	uint8_t square_table[8][8];
 
-    uint8_t castle_rights;
-    uint64_t attack_tables[2];
+	uint8_t castle_rights; // XBBBXWWW
+
+	uint8_t captured_pieces[2][16];  // captured_pieces[WHITE], captured_piece[BLACK]
+	short captured_pieces_count[2];
+
+    uint64_t en_passant_square;
+    uint64_t white_board;
+    uint64_t black_board;
+
     move_stack *moves;
+    struct MoveList *white_attacks; // Pseudo legal moves
+    struct MoveList *black_attacks; // Pseudo legal moves
 
-    uint8_t captured_pieces[2][16]; // captured_pieces[WHITE], captured_piece[BLACK]
-    short captured_pieces_count[2];
+    struct MoveList *white_legal_moves; // Legal moves
+    struct MoveList *black_legal_moves; // Legal moves
+
+    /*
+        lookup table will contain the attacks of  particular color.
+        the first index will wolways contain the combined attacks of all the pieces.
+        the next 6 indices will contain the attacks of each piece type.
+
+        The lookup table is used to check if a move is valid or not.
+    */
+    uint64_t white_lookup_table[97];
+    uint64_t black_lookup_table[97];
 } board;
 
 // structure for a square
-typedef struct {
-    uint8_t rank;
-    uint8_t file;
+typedef struct square {
+	uint8_t rank;
+	uint8_t file;
 } square;
 
 // functions for chessboard
-void init_board(board *board); // initializes the board
+void init_board(board *b);
 void init_pieces(pieces *type);
-void print_board(board *board, short turn); // prints the board
-uint64_t white_board(board *b); // returns the bitboard of all white pieces
-uint64_t black_board(board *b); // returns the bitboard of all black pieces
-uint8_t new_piece(short color, uint8_t piece_type, uint64_t position_bb, board *b); // for pawn promotion
+void print_board(board *b, short turn);
+void load_fen(board *b, char *fen);
 
-// functions for square table
-void update_square_table(int file, int rank, uint8_t piece, board *b);
 
 // Helper functions
+uint8_t piece_color(uint8_t piece_id);
+uint8_t piece_type(uint8_t piece_id);            
+uint8_t piece_number(uint8_t piece_id);          
 void get_rank_and_file_from_bitboard(uint64_t bitboard, int *file, int *rank);
 square get_square_from_bitboard(uint64_t bitboard);
 uint64_t get_bitboard(uint8_t file, uint8_t rank);
 uint8_t generate_id_for_promoted_piece(uint8_t piece_type, short color, board *b);
 short *get_pointer_to_piece_counter(board *b, uint8_t piece_id);
-uint64_t *get_pointer_to_piece_type(short color, uint8_t piece_type, board *b);
-
-// for debugging
+uint64_t **get_pointer_to_piece_type(short color, uint8_t piece_type, board *b);
+void update_square_table(int file, int rank, uint8_t piece, board *b);
+uint64_t white_board(board *b);
+uint64_t black_board(board *b);
 void print_square_from_bitboard(uint64_t bitboard);
 void print_moves(uint64_t moves);
+
+#endif

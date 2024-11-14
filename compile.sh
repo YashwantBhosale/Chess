@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if ls *.c 1> /dev/null 2>&1; then
-    gcc *.c -o a.out
+    gcc $(ls *.c | grep -v 'perft.c') -lm
 
     if [ $? -eq 0 ]; then
         echo "Compilation successful. Output file: a.out"
