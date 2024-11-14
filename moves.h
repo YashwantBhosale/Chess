@@ -1,33 +1,19 @@
+#include <stdbool.h>
 #include <stdint.h>
+#include "chessboard.h"
 
-#define NORMAL_MOVE 0
-#define CAPTURE_MOVE 1
-#define CASTLE_MOVE 2
-#define EN_PASSANT_MOVE 3
-#define WHITE_PROMOTION_MOVE 4 // 0000 0100
-#define BLACK_PROMOTION_MOVE 12 // 0000 1100
-
-#define WHITE_PROMOTES_TO_KNIGHT 0b00010100
-#define WHITE_PROMOTES_TO_BISHOP 0b00100100
-#define WHITE_PROMOTES_TO_ROOK 0b00110100
-#define WHITE_PROMOTES_TO_QUEEN 0b01000100
-
-#define BLACK_PROMOTES_TO_KNIGHT 0b00011100
-#define BLACK_PROMOTES_TO_BISHOP 0b00101100
-#define BLACK_PROMOTES_TO_ROOK 0b00111100
-#define BLACK_PROMOTES_TO_QUEEN 0b01001100
-
-#define PROMOTION_MOVE_MASK 0b00001111
-
-#define CHECK_MOVE 5
-#define CHECKMATE_MOVE 6
-#define STALEMATE_MOVE 7
-#define INVALID_MOVE -1
-
-/* Piece types */
-
-
-uint64_t generate_lookup_table(uint64_t piece_bitboard, uint8_t piece_id, board *b);
-void update_attack_tables(board *b, short turn);
-short make_move(square src, square dest, short turn, board *board);
-board* copy_board(board *b);
+uint64_t generate_pawn_attacks(uint8_t pawn_id, uint64_t pawn_position, board *b);
+uint64_t generate_bishop_attacks(uint8_t bishop_id, uint64_t bishop_position, board *b);
+short make_move(square src, square dest, short turn, board *b, bool is_engine);
+short unmake_move(board *b);
+void update_attacks(board *b);
+void update_attacks_for_color(board *b, short color);
+void update_type_board(board *b, short turn);
+void filter_legal_moves(board *b, short turn);
+int lookup_index(uint8_t id);
+void adjust_type_board_for_make_move(Move move, board *b);
+void adjust_type_board_for_unmake_move(Move move, board *b);
+uint8_t piece_type_from_promotion_flag(uint8_t flag);
+uint8_t get_id_of_promoted_piece(uint8_t piece_type, short color, short piece_number);
+bool in_check(short color, board *b);
+void filter_legal_moves_alt(board *b, short turn);

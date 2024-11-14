@@ -1,48 +1,24 @@
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <wchar.h>
 
 #include "chessboard.h"
+#include "move_types.h"
 #include "moves.h"
+#include "move_array.h"
 #include "move_stack.h"
+#include "evaluation.h"
 
-// some prototypes
-uint64_t get_combined_lookup_table(board *b, short color);
-bool in_check(short color, board *b);
-
-
-// Helper functions
+// helper functions
 uint64_t rankmask(int rank) {
-	return 0xFFULL << (8 * (rank - 1));
+	return 0xffULL << (8 * (rank - 1));
 }
-
-// small helper function
-unsigned int absolute(int x) {
-	return (x < 0) ? -x : x;
-}
-
 
 uint64_t filemask(int file) {
 	return 0x0101010101010101ULL << (file - 1);
-}
-
-void get_player_board_and_opp_board(short color, board *b, uint64_t *pb, uint64_t *ob) {
-	switch (color) {
-		case WHITE: {
-			*pb = white_board(b);
-			*ob = black_board(b);
-			break;
-		}
-		case BLACK: {
-			*pb = black_board(b);
-			*ob = white_board(b);
-			break;
-		}
-		default:
-			return;
-	}
 }
 
 /* This function returns pointer to the piece bitboard with argument as piece is */
@@ -79,1292 +55,1493 @@ uint64_t *get_pointer_to_piece(uint8_t piece_id, board *b) {
 	return NULL;
 }
 
-/*
-    Move generation functions:
-    For most of the pieces direction of movement is same for both colors, except for pawns but directions are considered based on color so that it is easier to imagine while writing lookup functions for each piece
-    This statergy is subject to change based on the implementation of lookup tables
-*/
+void adjust_type_board_for_make_move(Move move, board *b) {
+	uint64_t old_b = get_bitboard(move.src.file, move.src.rank);
+	uint64_t new_b = get_bitboard(move.dest.file, move.dest.rank);
+	short color = piece_color(move.piece);
+	uint64_t *player_type_board = color == WHITE ? &b->white_board : &b->black_board;
+	uint64_t *opponent_type_board = color == WHITE ? &b->black_board : &b->white_board;
 
-// function to generate forward direction move
-uint64_t move_north(uint64_t move, short color) {
-	uint64_t new_move = move << 8;
-	return new_move;
-}
+	switch (move.type) {
+		case NORMAL_MOVE:
+			*player_type_board &= ~old_b;
+			*player_type_board |= new_b;
+			break;
 
-// function to generate backward direction move
-uint64_t move_south(uint64_t move, short color) {
-	return move >> 8;
-}
+		case CAPTURE_MOVE:
+			*player_type_board &= ~old_b;
+			*player_type_board |= new_b;
+			*opponent_type_board &= ~new_b;
+			break;
 
-// function to generate left direction move
-uint64_t move_west(uint64_t move, short color) {
-	// if the move is on the leftmost file then it should not be allowed to move left
-	if (move & filemask(1)) {
-		return 0ULL;
+		case EN_PASSANT_MOVE:
+			*player_type_board &= ~old_b;
+			*player_type_board |= new_b;
+			*opponent_type_board &= ~(get_bitboard(move.dest.file, move.src.rank));
+			break;
+
+		case CASTLE_MOVE:
+			*player_type_board &= ~old_b;
+			*player_type_board |= new_b;
+			// King side castle
+			if (move.dest.file == G) {
+				*player_type_board &= ~(get_bitboard(H, move.src.rank));
+				*player_type_board |= get_bitboard(F, move.src.rank);
+			}
+			// Queen side castle
+			else if (move.dest.file == C) {
+				*player_type_board &= ~(get_bitboard(A, move.src.rank));
+				*player_type_board |= get_bitboard(D, move.src.rank);
+			}
+			break;
+
+		case WHITE_PROMOTES_TO_KNIGHT:
+		case WHITE_PROMOTES_TO_ROOK:
+		case WHITE_PROMOTES_TO_BISHOP:
+		case WHITE_PROMOTES_TO_QUEEN:
+		case BLACK_PROMOTES_TO_KNIGHT:
+		case BLACK_PROMOTES_TO_ROOK:
+		case BLACK_PROMOTES_TO_BISHOP:
+		case BLACK_PROMOTES_TO_QUEEN:
+			*player_type_board &= ~old_b;
+			*player_type_board |= new_b;
+			if (move.captured_piece != EMPTY_SQUARE) {
+				*opponent_type_board &= ~new_b;
+			}
+			break;
 	}
-
-	return move >> 1;
 }
 
-// function to generate right direction move
-uint64_t move_east(uint64_t move, short color) {
-	// if the move is on the rightmost file then it should not be allowed to move right
-	if (move & filemask(8)) {
-		return 0ULL;
+void adjust_type_board_for_unmake_move(Move move, board *b) {
+	uint64_t old_b = get_bitboard(move.src.file, move.src.rank);
+	uint64_t new_b = get_bitboard(move.dest.file, move.dest.rank);
+	short color = piece_color(move.piece);
+	uint64_t *player_type_board = color == WHITE ? &b->white_board : &b->black_board;
+	uint64_t *opponent_type_board = color == WHITE ? &b->black_board : &b->white_board;
+
+	switch (move.type) {
+		case NORMAL_MOVE:
+			*player_type_board &= ~new_b;
+			*player_type_board |= old_b;
+			break;
+
+		case CAPTURE_MOVE:
+			*player_type_board &= ~new_b;
+			*player_type_board |= old_b;
+			*opponent_type_board |= new_b;
+			break;
+
+		case EN_PASSANT_MOVE:
+			*player_type_board &= ~new_b;
+			*player_type_board |= old_b;
+			*opponent_type_board |= get_bitboard(move.dest.file, move.src.rank);
+			break;
+
+		case CASTLE_MOVE:
+			*player_type_board &= ~new_b;
+			*player_type_board |= old_b;
+			// King side castle
+			if (move.dest.file == G) {
+				*player_type_board &= ~get_bitboard(F, move.src.rank);
+				*player_type_board |= get_bitboard(H, move.src.rank);
+			}
+			// Queen side castle
+			else if (move.dest.file == C) {
+				*player_type_board &= ~get_bitboard(D, move.src.rank);
+				*player_type_board |= get_bitboard(A, move.src.rank);
+			}
+			break;
+
+		case WHITE_PROMOTES_TO_KNIGHT:
+		case WHITE_PROMOTES_TO_ROOK:
+		case WHITE_PROMOTES_TO_BISHOP:
+		case WHITE_PROMOTES_TO_QUEEN:
+		case BLACK_PROMOTES_TO_KNIGHT:
+		case BLACK_PROMOTES_TO_ROOK:
+		case BLACK_PROMOTES_TO_BISHOP:
+		case BLACK_PROMOTES_TO_QUEEN:
+			*player_type_board &= ~new_b;
+			*player_type_board |= old_b;
+			if (move.captured_piece != EMPTY_SQUARE) {
+				*opponent_type_board |= new_b;
+			}
+			break;
 	}
-
-	return move << 1;
 }
 
-// function to generate north-east direction move
-uint64_t move_north_east(uint64_t move, short color) {
-	uint64_t new_move = move_north(move, color);
-	new_move = move_east(new_move, color);
-
-	return new_move;
+uint64_t move_north(uint64_t b) {
+	return b << 8;
 }
 
-// function to generate north-west direction move
-uint64_t move_north_west(uint64_t move, short color) {
-	uint64_t new_move = move_north(move, color);
-	new_move = move_west(new_move, color);
-
-	return new_move;
+uint64_t move_south(uint64_t b) {
+	return b >> 8;
 }
 
-// function to generate south-east direction move
-uint64_t move_south_east(uint64_t move, short color) {
-	uint64_t new_move = move_south(move, color);
-	new_move = move_east(new_move, color);
-
-	return new_move;
+uint64_t move_east(uint64_t b) {
+	return (b & ~filemask(H)) << 1;
 }
 
-// function to generate south-west direction move
-uint64_t move_south_west(uint64_t move, short color) {
-	uint64_t new_move = move_south(move, color);
-	new_move = move_west(new_move, color);
-
-	return new_move;
+uint64_t move_west(uint64_t b) {
+	return (b & ~filemask(A)) >> 1;
 }
 
-
-// function to validate a move so that we do not step on our own piece: pb->player board, ob->opponent board
-uint64_t validate_move(uint64_t move, uint64_t pb, uint64_t ob) {
-	return move & ~pb;
-}
-// function to Make sure that the piece that is being captured is enemy piece
-uint64_t validate_capture(uint64_t move, uint64_t pb, uint64_t ob) {
-	return move & ob;
+uint64_t move_north_east(uint64_t b) {
+	return (b & ~filemask(H)) << 9;
 }
 
-// function to validate en passant
-uint64_t validate_en_passant(uint64_t piece_bitboard, short color, uint64_t en_passant, board *b) {
+uint64_t move_north_west(uint64_t b) {
+	return (b & ~filemask(A)) << 7;
+}
+
+uint64_t move_south_east(uint64_t b) {
+	return (b & ~filemask(H)) >> 7;
+}
+
+uint64_t move_south_west(uint64_t b) {
+	return (b & ~filemask(A)) >> 9;
+}
+
+// ensures you don't step on your own pieces
+uint64_t validate_move(uint64_t friendly_pieces, uint64_t move) {
+	return move & ~friendly_pieces;
+}
+
+// ensures you step on opponent piece
+uint64_t validate_capture(uint64_t opponent_pieces, uint64_t move) {
+	return move & opponent_pieces;
+}
+
+void add_move_to_list(uint64_t piece_position, uint64_t move, uint8_t type, board *b) {
 	square src, dest;
-	src = get_square_from_bitboard(piece_bitboard);
-	dest = get_square_from_bitboard(en_passant);
+	src = get_square_from_bitboard(piece_position);
+	dest = get_square_from_bitboard(move);
 
-	uint8_t piece, dest_piece;
-	piece = b->square_table[src.file-1][src.rank-1];
-	dest_piece = b->square_table[dest.file-1][dest.rank-1];
+	uint8_t piece = b->square_table[src.file - 1][src.rank - 1];
+	uint8_t captured_piece = b->square_table[dest.file - 1][dest.rank - 1];
+	uint8_t color = piece_color(piece);
+	uint8_t promoted_piece = 0;
+	uint64_t en_passant_square = 0;
 
-	// // en passant check
-	if (piece_type(piece) == PAWN && absolute(src.rank - dest.rank) == 1 && dest_piece == EMPTY_SQUARE) {
-		Move last_move = peek(moves);
-		if ((last_move.piece & 7) == PAWN && absolute(last_move.src.rank - last_move.dest.rank) == 2 && last_move.dest.file == dest.file && piece_color(last_move.piece) != color) {
-			
-			if(color == WHITE && piece_bitboard & rankmask(5)){
-				return en_passant;
-			}
-			else if(color == BLACK && piece_bitboard & rankmask(4)) {
-				return en_passant;
-			}
-			else {
-				return 0ULL;
-			}
-		}
-	} 
+	if (captured_piece != EMPTY_SQUARE) {
+		type = CAPTURE_MOVE;
+	} else if (type == EN_PASSANT_MOVE) {
+		captured_piece = b->square_table[dest.file - 1][src.rank - 1];
+	} else if ((piece_type(piece) == PAWN) && abs(src.rank - dest.rank) == 2) {
+		en_passant_square = get_bitboard(src.file, color == WHITE ? 3 : 6);
+	} else if (((type & PROMOTION_MOVE_MASK) == WHITE_PROMOTION_MOVE) || ((type & PROMOTION_MOVE_MASK) == BLACK_PROMOTION_MOVE)) {
+		uint8_t piece_type = piece_type_from_promotion_flag(type);
+		uint8_t _piece_number = *get_pointer_to_piece_counter(b, piece_type);
+		promoted_piece = get_id_of_promoted_piece(piece_type, color, _piece_number + 1);
+	}
 
-	
+	Move m = {
+	    .src = src,
+	    .dest = dest,
+	    .piece = piece,
+	    .captured_piece = captured_piece,
+	    .en_passant_square = en_passant_square,
+	    .promoted_piece = promoted_piece,
+	    .castle_rights = b->castle_rights,
+	    .type = type};
 
-	return 0ULL;
+	switch (color) {
+		case WHITE:
+			add_move(b->white_attacks, m);
+			break;
+		case BLACK:
+			add_move(b->black_attacks, m);
+			break;
+	}
+	return;
 }
 
+uint64_t generate_pawn_attacks(uint8_t pawn_id, uint64_t pawn_position, board *b) {
+	uint64_t attacks = 0ULL, move = 0ULL, player_board, opponent_board;
+	uint8_t color = piece_color(pawn_id);
 
-/* 
-	CASTLING:
-	Base conditions for castling:
-	1. It should be the first move of the king and the rook.
-	2. There should be no pieces between the king and the rook.
-	3. The king should not be in check.
-	4. The squares the king moves over should not be under attack.
-	5. The king should not move through a square that is attacked.
+	player_board = color == WHITE ? b->white_board : b->black_board;
+	opponent_board = color == WHITE ? b->black_board : b->white_board;
 
-	King side castling:
-	1. King moves two squares to the right.
-	2. Rook moves two squares to the left.
+	switch (color) {
+		case WHITE:
+			move = validate_move(player_board | opponent_board, move_north(pawn_position));
+			if (move & ~(rankmask(8))) {
+				add_move_to_list(pawn_position, move, NORMAL_MOVE, b);
+				attacks |= move;
+			}
 
-	Queen side castling:
-	1. King moves two squares to the left.
-	2. Rook moves three squares to the right.
+			if (pawn_position & rankmask(2) && move) {
+				move = validate_move(player_board | opponent_board, move_north(move_north(pawn_position)));
+				if (move) {
+					add_move_to_list(pawn_position, move, NORMAL_MOVE, b);
+					attacks |= move;
+				}
+			}
 
-	Raw idea:
-	Implementation:
-	1. Castling rights:
-	8-bit flag may be used to store castling rights.
-	format: xBBB xWWW
-	BBB -> represents black castling rights
-	WWW -> represents white castling rights
+			move = validate_capture(opponent_board, move_north_east(pawn_position));
+			if (move & ~rankmask(8)) {
+				add_move_to_list(pawn_position, move, CAPTURE_MOVE, b);
+				attacks |= move;
+			}
 
-	in 3-bit number: 
-	MSB = 1 means king hasn't moved
-	so, masks to check castling rights: { 0b101, 0b110 }
-	0XX -> no castling rights
-	101 -> king side castling rights
-	110 -> queen side castling rights
-	111 -> both castling rights
+			move = validate_capture(opponent_board, move_north_west(pawn_position));
+			if (move & ~rankmask(8)) {
+				add_move_to_list(pawn_position, move, CAPTURE_MOVE, b);
+				attacks |= move;
+			}
 
-	in this configuration:
-	for black:
-	masks = { 0b01010000, 0b01100000, 0b01110000 }
-	for white:
-	masks = { 0b00000101, 0b00000110, 0b00000111 }
+			if (pawn_position & rankmask(5) && b->en_passant_square) {
+				move = move_north_east(pawn_position) & ~(player_board | opponent_board);
+				if (move == b->en_passant_square) {
+					add_move_to_list(pawn_position, move, EN_PASSANT_MOVE, b);
+					attacks |= move;
+				}
 
-	which bitwise operation would be useful?
-	-> the main idea is :
-	flag <bitwise-operator> mask = <Result>
-	This Result should give us exactly one mask which is present in the masks array.
-	For this, we can use bitwise AND operation.
-*/
+				move = move_north_west(pawn_position) & ~(player_board | opponent_board);
+				if (move == b->en_passant_square) {
+					add_move_to_list(pawn_position, move, EN_PASSANT_MOVE, b);
+					attacks |= move;
+				}
+			}
 
-// function to validate castling
-uint64_t validate_castle(uint64_t king, short color, board *b) {
+			// add promotion moves
+			move = validate_move(player_board | opponent_board, move_north(pawn_position));
+			uint64_t move_ne = validate_capture(opponent_board, move_north_east(pawn_position));
+			uint64_t move_nw = validate_capture(opponent_board, move_north_west(pawn_position));
+			if ((move & rankmask(8)) || (move_ne & rankmask(8)) || (move_nw & rankmask(8))) {
+				if (move) {
+					add_move_to_list(pawn_position, move, WHITE_PROMOTES_TO_QUEEN, b);
+					add_move_to_list(pawn_position, move, WHITE_PROMOTES_TO_ROOK, b);
+					add_move_to_list(pawn_position, move, WHITE_PROMOTES_TO_BISHOP, b);
+					add_move_to_list(pawn_position, move, WHITE_PROMOTES_TO_KNIGHT, b);
+				}
+				if (move_ne) {
+					add_move_to_list(pawn_position, move_ne, WHITE_PROMOTES_TO_QUEEN, b);
+					add_move_to_list(pawn_position, move_ne, WHITE_PROMOTES_TO_ROOK, b);
+					add_move_to_list(pawn_position, move_ne, WHITE_PROMOTES_TO_BISHOP, b);
+					add_move_to_list(pawn_position, move_ne, WHITE_PROMOTES_TO_KNIGHT, b);
+				}
+				if (move_nw) {
+					add_move_to_list(pawn_position, move_nw, WHITE_PROMOTES_TO_QUEEN, b);
+					add_move_to_list(pawn_position, move_nw, WHITE_PROMOTES_TO_ROOK, b);
+					add_move_to_list(pawn_position, move_nw, WHITE_PROMOTES_TO_BISHOP, b);
+					add_move_to_list(pawn_position, move_nw, WHITE_PROMOTES_TO_KNIGHT, b);
+				}
+				attacks |= (move | move_ne | move_nw);
+			}
+			break;
+		case BLACK: {
+			move = validate_move(player_board | opponent_board, move_south(pawn_position));
+			if (move & ~(rankmask(1))) {
+				add_move_to_list(pawn_position, move, NORMAL_MOVE, b);
+				attacks |= move;
+			}
 
+			if (pawn_position & rankmask(7) && move) {
+				move = validate_move(player_board | opponent_board, move_south(move_south(pawn_position)));
+				if (move) {
+					add_move_to_list(pawn_position, move, NORMAL_MOVE, b);
+					attacks |= move;
+				}
+			}
 
-	/*
-		!! IMPORTANT NOTE: This function assumes that the basic check of castle rights is done.
-		that is the castle rights are checked before calling this function. as a consequence,
-		at least one of the castle rights should be present in the castle rights flag for 
-		given color.
-	*/ 
+			move = validate_capture(opponent_board, move_south_east(pawn_position));
+			if (move & ~rankmask(1)) {
+				add_move_to_list(pawn_position, move, CAPTURE_MOVE, b);
+				attacks |= move;
+			}
 
-	uint64_t player_board, opp_board, king_move, cursor, opponent_attacks, queen_move;
-	get_player_board_and_opp_board(color, b, &player_board, &opp_board);
+			move = validate_capture(opponent_board, move_south_west(pawn_position));
+			if (move & ~rankmask(1)) {
+				add_move_to_list(pawn_position, move, CAPTURE_MOVE, b);
+				attacks |= move;
+			}
 
-	// opponent_attacks = get_combined_lookup_table(b, !color);
-	opponent_attacks = b->attack_tables[!color];
+			if (pawn_position & rankmask(4) && b->en_passant_square) {
+				move = move_south_east(pawn_position) & ~(player_board | opponent_board);
+				if (move == b->en_passant_square) {
+					add_move_to_list(pawn_position, move, EN_PASSANT_MOVE, b);
+					attacks |= move;
+				}
 
-	king_move = 0ULL;
-	queen_move = 0ULL;
+				move = move_south_west(pawn_position) & ~(player_board | opponent_board);
+				if (move == b->en_passant_square) {
+					add_move_to_list(pawn_position, move, EN_PASSANT_MOVE, b);
+					attacks |= move;
+				}
+			}
 
-	if(king & opponent_attacks) {
+			// add promotion moves
+			move = validate_move(player_board | opponent_board, move_south(pawn_position));
+			uint64_t move_se = validate_capture(opponent_board, move_south_east(pawn_position));
+			uint64_t move_sw = validate_capture(opponent_board, move_south_west(pawn_position));
+
+			if ((move & rankmask(1)) || (move_se & rankmask(1)) || (move_sw & rankmask(1))) {
+				if (move) {
+					add_move_to_list(pawn_position, move, BLACK_PROMOTES_TO_QUEEN, b);
+					add_move_to_list(pawn_position, move, BLACK_PROMOTES_TO_ROOK, b);
+					add_move_to_list(pawn_position, move, BLACK_PROMOTES_TO_BISHOP, b);
+					add_move_to_list(pawn_position, move, BLACK_PROMOTES_TO_KNIGHT, b);
+				}
+				if (move_se) {
+					add_move_to_list(pawn_position, move_se, BLACK_PROMOTES_TO_QUEEN, b);
+					add_move_to_list(pawn_position, move_se, BLACK_PROMOTES_TO_ROOK, b);
+					add_move_to_list(pawn_position, move_se, BLACK_PROMOTES_TO_BISHOP, b);
+					add_move_to_list(pawn_position, move_se, BLACK_PROMOTES_TO_KNIGHT, b);
+				}
+				if (move_sw) {
+					add_move_to_list(pawn_position, move_sw, BLACK_PROMOTES_TO_QUEEN, b);
+					add_move_to_list(pawn_position, move_sw, BLACK_PROMOTES_TO_ROOK, b);
+					add_move_to_list(pawn_position, move_sw, BLACK_PROMOTES_TO_BISHOP, b);
+					add_move_to_list(pawn_position, move_sw, BLACK_PROMOTES_TO_KNIGHT, b);
+				}
+
+				attacks |= (move | move_se | move_sw);
+			}
+		} break;
+	}
+
+	return attacks;
+}
+
+uint64_t generate_bishop_attacks(uint8_t bishop_id, uint64_t bishop_position, board *b) {
+	uint64_t attacks = 0ULL, move = 0ULL, player_board, opponent_board;
+	uint8_t color = piece_color(bishop_id);
+
+	player_board = color == WHITE ? b->white_board : b->black_board;
+	opponent_board = color == WHITE ? b->black_board : b->white_board;
+
+	move = bishop_position;
+	while (move) {
+		move = validate_move(player_board, move_north_east(move));
+		if (move) {
+			add_move_to_list(bishop_position, move, NORMAL_MOVE, b);
+			attacks |= move;
+		}
+		if (move & opponent_board) {
+			break;
+		}
+	}
+
+	move = bishop_position;
+	while (move) {
+		move = validate_move(player_board, move_north_west(move));
+		if (move) {
+			add_move_to_list(bishop_position, move, NORMAL_MOVE, b);
+			attacks |= move;
+		}
+		if (move & opponent_board) {
+			break;
+		}
+	}
+
+	move = bishop_position;
+	while (move) {
+		move = validate_move(player_board, move_south_east(move));
+		if (move) {
+			add_move_to_list(bishop_position, move, NORMAL_MOVE, b);
+			attacks |= move;
+		}
+		if (move & opponent_board) {
+			break;
+		}
+	}
+
+	move = bishop_position;
+	while (move) {
+		move = validate_move(player_board, move_south_west(move));
+		if (move) {
+			add_move_to_list(bishop_position, move, NORMAL_MOVE, b);
+			attacks |= move;
+		}
+		if (move & opponent_board) {
+			break;
+		}
+	}
+	return attacks;
+}
+
+uint64_t generate_rook_attacks(uint8_t rook_id, uint64_t rook_position, board *b) {
+	uint64_t attacks = 0ULL, move = 0ULL, player_board, opponent_board;
+	uint8_t color = piece_color(rook_id);
+
+	player_board = color == WHITE ? b->white_board : b->black_board;
+	opponent_board = color == WHITE ? b->black_board : b->white_board;
+
+	move = rook_position;
+	while (move) {
+		move = validate_move(player_board, move_north(move));
+		if (move) {
+			add_move_to_list(rook_position, move, NORMAL_MOVE, b);
+			attacks |= move;
+		}
+		if (move & opponent_board) {
+			break;
+		}
+	}
+
+	move = rook_position;
+	while (move) {
+		move = validate_move(player_board, move_south(move));
+		if (move) {
+			add_move_to_list(rook_position, move, NORMAL_MOVE, b);
+			attacks |= move;
+		}
+		if (move & opponent_board) {
+			break;
+		}
+	}
+
+	move = rook_position;
+	while (move) {
+		move = validate_move(player_board, move_east(move));
+		if (move) {
+			add_move_to_list(rook_position, move, NORMAL_MOVE, b);
+			attacks |= move;
+		}
+		if (move & opponent_board) {
+			break;
+		}
+	}
+
+	move = rook_position;
+	while (move) {
+		move = validate_move(player_board, move_west(move));
+		if (move) {
+			add_move_to_list(rook_position, move, NORMAL_MOVE, b);
+			attacks |= move;
+		}
+		if (move & opponent_board) {
+			break;
+		}
+	}
+	return attacks;
+}
+
+uint64_t generate_queen_attacks(uint8_t queen_id, uint64_t queen_position, board *b) {
+	uint64_t attacks = 0ULL;
+
+	attacks |= generate_bishop_attacks(queen_id, queen_position, b);
+	attacks |= generate_rook_attacks(queen_id, queen_position, b);
+
+	return attacks;
+}
+
+uint64_t generate_knight_attacks(uint8_t knight_id, uint64_t knight_position, board *b) {
+	uint64_t attacks = 0ULL, move = 0ULL, player_board;
+	uint8_t color = piece_color(knight_id);
+
+	player_board = color == WHITE ? b->white_board : b->black_board;
+
+	move = validate_move(player_board, move_north(move_north_east(knight_position)));
+	if (move) {
+		add_move_to_list(knight_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
+
+	move = validate_move(player_board, move_north(move_north_west(knight_position)));
+	if (move) {
+		add_move_to_list(knight_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
+
+	move = validate_move(player_board, move_east(move_north_east(knight_position)));
+	if (move) {
+		add_move_to_list(knight_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
+
+	move = validate_move(player_board, move_east(move_south_east(knight_position)));
+	if (move) {
+		add_move_to_list(knight_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
+
+	move = validate_move(player_board, move_south(move_south_east(knight_position)));
+	if (move) {
+		add_move_to_list(knight_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
+
+	move = validate_move(player_board, move_south(move_south_west(knight_position)));
+	if (move) {
+		add_move_to_list(knight_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
+
+	move = validate_move(player_board, move_west(move_north_west(knight_position)));
+	if (move) {
+		add_move_to_list(knight_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
+
+	move = validate_move(player_board, move_west(move_south_west(knight_position)));
+	if (move) {
+		add_move_to_list(knight_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
+
+	return attacks;
+}
+
+uint64_t validate_castle(uint64_t king_position, short color, board *b) {
+	uint64_t player_board, opponent_board, king_side_castle, queen_side_castle, move;
+
+	player_board = color == WHITE ? b->white_board : b->black_board;
+	opponent_board = color == WHITE ? b->black_board : b->white_board;
+
+	move = 0ULL;
+
+	uint64_t opponent_attacks = color == WHITE ? b->black_lookup_table[0] : b->white_lookup_table[0];
+
+	if (king_position & opponent_attacks) {
 		return 0ULL;
 	}
+
 	// king side castle
 	if (b->castle_rights & (color == WHITE ? WHITE_KING_SIDE_CASTLE_RIGHTS : BLACK_KING_SIDE_CASTLE_RIGHTS)) {
-
-		cursor = king;
-
-		// we gotta move 2 squares in the east direction for king side castle
+		move = king_position;
 		for (int i = 0; i < 2; i++) {
-			cursor = move_east(cursor, color);
-			if (cursor & (player_board | opp_board)) {
-				king_move = 0ULL;
+			move = validate_move(player_board | opponent_board, move_east(move));
+			if (move & (player_board | opponent_board)) {
+				move = 0ULL;
 				break;
 			}
-			
-			if(cursor & opponent_attacks) {
-				king_move = 0ULL;
+			if (move & opponent_attacks) {
+				move = 0ULL;
 				break;
 			}
-
-			king_move |= cursor;
 		}
-
-		print_moves(king_move);
-
+		king_side_castle = move;
 	}
-	if(b->castle_rights & (color == WHITE ? WHITE_QUEEN_SIDE_CASTLE_RIGHTS : BLACK_QUEEN_SIDE_CASTLE_RIGHTS)){
 
-
-		cursor = king;
-
-		// we gotta move 2 squares in the west direction for queen side castle
-		for (int i = 0; i < 2; i++) {
-			cursor = move_west(cursor, color);
-			if (cursor & (player_board | opp_board)) {
-				queen_move = 0ULL;
+	// queen side castle
+	if (b->castle_rights & (color == WHITE ? WHITE_QUEEN_SIDE_CASTLE_RIGHTS : BLACK_QUEEN_SIDE_CASTLE_RIGHTS)) {
+		move = king_position;
+		for (int i = 0; i < 3; i++) {
+			move = validate_move(player_board | opponent_board, move_west(move));
+			if (move & (player_board | opponent_board)) {
+				move = 0ULL;
 				break;
 			}
-			
-			if(cursor & opponent_attacks) {
-				queen_move = 0ULL;
+			if (move & opponent_attacks) {
+				move = 0ULL;
 				break;
 			}
-
-			queen_move |= cursor;
 		}
-
-		print_moves(queen_move);
+		queen_side_castle = move;
 	}
 
-
-
-	return king_move | queen_move;
+	return king_side_castle | queen_side_castle;
 }
 
+uint64_t generate_king_attacks(uint8_t king_id, uint64_t king_position, board *b) {
+	uint64_t attacks = 0ULL, move = 0ULL, player_board;
+	uint8_t color = piece_color(king_id);
 
+	player_board = color == WHITE ? b->white_board : b->black_board;
 
-/* piece wise lookup functions */
-uint64_t pawn_lookup(uint64_t pawn, short color, board *b) {
-	/*
-	1. check if pawn can step forward (that square should not be occupied by enemy / friendly piece)
-	2. check if its pawn's first move (if yes then it can move 2 squares forward)
-	3. check if pawn can capture enemy piece on two diagonals
-	4. enpassant
-	5. promotion
-	*/
-	uint64_t player_board, opp_board, move, lookup;
+	move = validate_move(player_board, move_north(king_position));
+	if (move) {
+		add_move_to_list(king_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
 
-	lookup = 0ULL;
-	move = 0ULL;
-	/*
-	 NOTE:
-	 Always make sure that you are checking color in right way
-	 as an example,
-	 we use d3 bit to represent color of the piece so if we are using that information we need to right shift by 3 as our program as a whole recognizes BLACK = 1, WHITE = 0
-	 so after masking if we get 8 === 0b00001000 then we need to right shift by 3 to get 1
-	*/
-	get_player_board_and_opp_board(color, b, &player_board, &opp_board);
+	move = validate_move(player_board, move_south(king_position));
+	if (move) {
+		add_move_to_list(king_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
 
-	switch (color) {
-		case WHITE: {
-			/* 1. check if pawn can move forward */
-			move = move_north(pawn, color);
+	move = validate_move(player_board, move_east(king_position));
+	if (move) {
+		add_move_to_list(king_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
 
-			/* IMPORTANT: AS WE CONSIDER PIECES OF BOTH COLORS AS NON-CAPTURABLE PIECES IN CASE OF FORWARD MOVES OF PAWN, WE PASS COMBINED BOARD OF PLAYER AND OPPONENT AS PLAYER BOARD */
-			move = validate_move(move, player_board | opp_board, 0ULL);
-			lookup |= move;
+	move = validate_move(player_board, move_west(king_position));
+	if (move) {
+		add_move_to_list(king_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
 
-			/* 2. check if its pawn's first move */
-			if (pawn & rankmask(2)) {
-				move = move_north(move, color);
-				move = validate_move(move, player_board | opp_board, 0ULL);
-				lookup |= move;
-			}
+	move = validate_move(player_board, move_north_east(king_position));
+	if (move) {
+		add_move_to_list(king_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
 
-			/* 3. check if pawn can capture enemy piece on two diagonals */
-			move = move_north_east(pawn, color);
-			move = validate_capture(move, player_board, opp_board);
-			lookup |= move;
+	move = validate_move(player_board, move_north_west(king_position));
+	if (move) {
+		add_move_to_list(king_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
 
-			move = move_north_west(pawn, color);
-			move = validate_capture(move, player_board, opp_board);
-			lookup |= move;
+	move = validate_move(player_board, move_south_east(king_position));
+	if (move) {
+		add_move_to_list(king_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
 
-			/* 4. enpassant */
-			uint64_t en_passant;
-			en_passant = move_north_east(pawn, color);
-			if (en_passant) {
-				move = validate_en_passant(pawn, color, en_passant, b);
-				lookup |= move;
-			}
+	move = validate_move(player_board, move_south_west(king_position));
+	if (move) {
+		add_move_to_list(king_position, move, NORMAL_MOVE, b);
+		attacks |= move;
+	}
 
-			en_passant = move_north_west(pawn, color);
-			if (en_passant) {
-				move = validate_en_passant(pawn, color, en_passant, b);
-				lookup |= move;
-			}
-			break;
+	// castle moves
+	if ((b->castle_rights & (color == WHITE ? WHITE_CASTLE_RIGHTS : BLACK_CASTLE_RIGHTS)) != 0) {
+		move = validate_castle(king_position, color, b);
+		int moves_count = __builtin_popcountll(move);
+		for (int i = 0; i < moves_count; i++) {
+			int index = __builtin_ctzll(move);
+			uint64_t _m = 1ULL << index;
+			add_move_to_list(king_position, _m, CASTLE_MOVE, b);
+			attacks |= _m;
+			move &= ~_m;
 		}
-		case BLACK: {
-			move = move_south(pawn, color);
-			move = validate_move(move, player_board | opp_board, 0ULL);
-			lookup |= move;
-
-			if (pawn & rankmask(7)) {
-				move = move_south(move, color);
-				move = validate_move(move, player_board | opp_board, 0ULL);
-				lookup |= move;
-			}
-
-			move = move_south_west(pawn, color);
-			move = validate_capture(move, player_board, opp_board);
-			lookup |= move;
-
-			move = move_south_east(pawn, color);
-			move = validate_capture(move, player_board, opp_board);
-			lookup |= move;
-
-			uint64_t en_passant;
-			en_passant = move_south_west(pawn, color);
-			if (en_passant) {
-				move = validate_en_passant(pawn, color, en_passant, b);
-				lookup |= move;
-			}
-
-			en_passant = move_south_east(pawn, color);
-			if (en_passant) {
-				move = validate_en_passant(pawn, color, en_passant, b);
-				lookup |= move;
-			}
-			break;
-		}
-		default:
-			break;
 	}
 
-	/*
-	    PENDING: 1. Enpassant, 2. Promotion
-	*/
-
-	return lookup;
+	return attacks;
 }
 
-uint64_t knight_lookup(uint64_t knight, short color, board *b) {
-	uint64_t player_board, opp_board, move, lookup;
-
-	move = 0ULL;
-	lookup = 0ULL;
-
-	get_player_board_and_opp_board(color, b, &player_board, &opp_board);
-
-	/* 1. check if knight can move north-north-east */
-	move = move_north(move_north(move_east(knight, color), color), color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 2. check if knight can move north-east-east */
-	move = move_north(move_east(move_east(knight, color), color), color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 3. check if knight can move south-east-east */
-	move = move_south(move_east(move_east(knight, color), color), color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 4. check if knight can move south-south-east */
-	move = move_south(move_south(move_east(knight, color), color), color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 5. check if knight can move south-south-west */
-	move = move_south(move_south(move_west(knight, color), color), color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 6. check if knight can move south-west-west */
-	move = move_south(move_west(move_west(knight, color), color), color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 7. check if knight can move north-west-west */
-	move = move_north(move_west(move_west(knight, color), color), color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 8. check if knight can move north-north-west */
-	move = move_north(move_north(move_west(knight, color), color), color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	return lookup;
+uint8_t generate_id_for_promoted_piece(uint8_t piece_type, short color, board *b) {
+	uint8_t piece_color = color == WHITE ? 0 : 8;
+	short *piece_counter = get_pointer_to_piece_counter(b, piece_type);
+	if (!piece_counter) return 0;
+	(*piece_counter)++;
+	uint8_t piece_number = *piece_counter;
+	return (piece_color | piece_type | ((piece_number - 1) << 4)) | 64;
 }
 
-uint64_t bishop_lookup(uint64_t bishop, short color, board *b) {
-	uint64_t player_board, opp_board, move, cursor, lookup;
-
-	move = 0ULL;
-	lookup = 0ULL;
-
-	get_player_board_and_opp_board(color, b, &player_board, &opp_board);
-
-	/* 1. check if bishop can move north-east */
-	cursor = bishop;
-	while (cursor) {
-		move = move_north_east(cursor, color);
-		move = validate_move(move, player_board, opp_board);
-		lookup |= move;  // update the lookup table with the new move
-		cursor = move;   // update the cursor to the new position
-
-		if (move & opp_board)  // if bishop can capture enemy piece then break
-			break;
-	}
-
-	/* 2. check if bishop can move north-west */
-	cursor = bishop;
-	while (cursor) {
-		move = move_north_west(cursor, color);
-		move = validate_move(move, player_board, opp_board);
-		lookup |= move;  // update the lookup table with the new move
-		cursor = move;   // update the cursor to the new position
-
-		if (move & opp_board)  // if bishop can capture enemy piece then break
-			break;
-	}
-
-	/* 3. check if bishop can move south-east */
-	cursor = bishop;
-	while (cursor) {
-		move = move_south_east(cursor, color);
-		move = validate_move(move, player_board, opp_board);
-		lookup |= move;  // update the lookup table with the new move
-		cursor = move;   // update the cursor to the new position
-
-		if (move & opp_board)  // if bishop can capture enemy piece then break
-			break;
-	}
-
-	/* 4. check if bishop can move south-west */
-	cursor = bishop;
-	while (cursor) {
-		move = move_south_west(cursor, color);
-		move = validate_move(move, player_board, opp_board);
-		lookup |= move;  // update the lookup table with the new move
-		cursor = move;   // update the cursor to the new position
-
-		if (move & opp_board)  // if bishop can capture enemy piece then break
-			break;
-	}
-
-	return lookup;
-}
-uint64_t rook_lookup(uint64_t rook, short color, board *b) {
-	uint64_t player_board, opp_board, move, cursor, lookup;
-
-	move = 0ULL;
-	lookup = 0ULL;
-
-	get_player_board_and_opp_board(color, b, &player_board, &opp_board);
-
-	/* 1. check if rook can move north */
-	cursor = rook;
-	while (cursor) {
-		move = move_north(cursor, color);
-		move = validate_move(move, player_board, opp_board);
-		lookup |= move;  // update the lookup table with the new move
-		cursor = move;   // update the cursor to the new position
-
-		if (move & opp_board)  // if rook can capture enemy piece then break
-			break;
-	}
-
-	/* 2. check if rook can move south */
-	cursor = rook;
-	while (cursor) {
-		move = move_south(cursor, color);
-		move = validate_move(move, player_board, opp_board);
-		lookup |= move;  // update the lookup table with the new move
-		cursor = move;   // update the cursor to the new position
-
-		if (move & opp_board)  // if rook can capture enemy piece then break
-			break;
-	}
-
-	/* 3. check if rook can move east */
-	cursor = rook;
-	while (cursor) {
-		move = move_east(cursor, color);
-		move = validate_move(move, player_board, opp_board);
-		lookup |= move;  // update the lookup table with the new move
-		cursor = move;   // update the cursor to the new position
-
-		if (move & opp_board)  // if rook can capture enemy piece then break
-			break;
-	}
-
-	/* 4. check if rook can move west */
-	cursor = rook;
-	while (cursor) {
-		move = move_west(cursor, color);
-		move = validate_move(move, player_board, opp_board);
-		lookup |= move;  // update the lookup table with the new move
-		cursor = move;   // update the cursor to the new position
-
-		if (move & opp_board)  // if rook can capture enemy piece then break
-			break;
-	}
-
-	return lookup;
+uint8_t get_id_of_promoted_piece(uint8_t piece_type, short color, short piece_number) {
+	uint8_t piece_color = color == WHITE ? 0 : 8;
+	return (piece_color | piece_type | ((piece_number - 1) << 4)) | 64;
 }
 
-uint64_t queen_lookup(uint64_t queen, short color, board *b) {
-	return bishop_lookup(queen, color, b) | rook_lookup(queen, color, b);
-}
+uint8_t new_piece(uint8_t _piece_type, uint8_t color, uint64_t position, board *b) {
+	uint8_t piece_id = generate_id_for_promoted_piece(_piece_type, color, b);
+	uint64_t **piece_type_ptr = get_pointer_to_piece_type(color, _piece_type, b);
 
-uint64_t king_lookup(uint64_t king, short color, board *b) {
-	uint64_t player_board, opp_board, move, lookup;
-
-	move = 0ULL;
-	lookup = 0ULL;
-
-	get_player_board_and_opp_board(color, b, &player_board, &opp_board);
-
-	/* 1. check if king can move north */
-	move = move_north(king, color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 2. check if king can move south */
-	move = move_south(king, color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 3. check if king can move east */
-	move = move_east(king, color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 4. check if king can move west */
-	move = move_west(king, color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 5. check if king can move north-east */
-	move = move_north_east(king, color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 6. check if king can move north-west */
-	move = move_north_west(king, color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 7. check if king can move south-east */
-	move = move_south_east(king, color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 8. check if king can move south-west */
-	move = move_south_west(king, color);
-	move = validate_move(move, player_board, opp_board);
-	lookup |= move;
-
-	/* 9. check if king can castle */
-	if(b->castle_rights & (color == WHITE ? WHITE_CASTLE_RIGHTS : BLACK_CASTLE_RIGHTS)){
-		// wprintf(L"%s King can castle\n", color == WHITE ? "White" : "Black");
-		move = validate_castle(king, color, b);
-		print_moves(move);
-		lookup |= move;
+	if (!piece_type_ptr) {
+		return 0;
 	}
 
-	return lookup;
+	// Store the result of realloc in a temporary variable
+	uint64_t *temp = (uint64_t *)realloc(*piece_type_ptr, sizeof(uint64_t) * (piece_number(piece_id) + 1));
+
+	// Check if realloc succeeded
+	if (!temp) {
+		fprintf(stderr, "Memory allocation failed\n");
+		return 0;
+	}
+
+	// Update piece_type_ptr to the new memory location
+	*piece_type_ptr = temp;
+
+	// Now use *piece_type_ptr safely
+	(*piece_type_ptr)[piece_number(piece_id)] = position;
+
+	square dest = get_square_from_bitboard(position);
+	update_square_table(dest.file, dest.rank, piece_id, b);
+	return piece_id;
 }
 
-// function to generate lookup tables
-uint64_t generate_lookup_table(uint64_t piece_bitboard, uint8_t piece_id, board *b) {
-	if (!piece_bitboard)
-		return 0ULL;
+uint8_t piece_type_from_promotion_flag(uint8_t flag) {
+	switch (flag) {
+		case WHITE_PROMOTES_TO_QUEEN:
+		case BLACK_PROMOTES_TO_QUEEN:
+			return QUEEN;
 
-	uint64_t lookup_table = 0ULL;
-	uint8_t type, color;
-	type = piece_type(piece_id);
-	color = piece_color(piece_id);
+		case WHITE_PROMOTES_TO_ROOK:
+		case BLACK_PROMOTES_TO_ROOK:
+			return ROOK;
 
-	switch (type) {
-		case PAWN:
-			lookup_table = pawn_lookup(piece_bitboard, color, b);
-			break;
-		case KNIGHT:
-			lookup_table = knight_lookup(piece_bitboard, color, b);
-			break;
-		case BISHOP:
-			lookup_table = bishop_lookup(piece_bitboard, color, b);
-			break;
-		case ROOK:
-			lookup_table = rook_lookup(piece_bitboard, color, b);
-			break;
-		case QUEEN:
-			lookup_table = queen_lookup(piece_bitboard, color, b);
-			break;
-		case KING:
-			lookup_table = king_lookup(piece_bitboard, color, b);
-			break;
+		case WHITE_PROMOTES_TO_BISHOP:
+		case BLACK_PROMOTES_TO_BISHOP:
+			return BISHOP;
+
+		case WHITE_PROMOTES_TO_KNIGHT:
+		case BLACK_PROMOTES_TO_KNIGHT:
+			return KNIGHT;
 
 		default:
 			break;
 	}
-
-	return lookup_table;
+	return 0;
 }
 
-uint64_t get_combined_lookup_table(board *b, short color) {
-	uint64_t lookup_table = 0ULL;
-	uint8_t cursor;
+bool move(square src, square dest, short move_type, board *b) {
+	uint64_t *src_piece, *dest_piece;
+	uint8_t piece, dest_piece_id, color;
+
+	piece = b->square_table[src.file - 1][src.rank - 1];
+	dest_piece_id = b->square_table[dest.file - 1][dest.rank - 1];
+
+	if (piece == EMPTY_SQUARE) {
+		return false;
+	}
+
+	color = piece_color(piece);
+	src_piece = get_pointer_to_piece(piece, b);
+
+	if (dest_piece_id != EMPTY_SQUARE) {
+		dest_piece = get_pointer_to_piece(dest_piece_id, b);
+	}
+
+	switch (move_type) {
+		case NORMAL_MOVE:
+			*src_piece = get_bitboard(dest.file, dest.rank);
+			update_square_table(dest.file, dest.rank, piece, b);
+			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
+			break;
+		case CAPTURE_MOVE:
+			*src_piece = get_bitboard(dest.file, dest.rank);
+			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
+			update_square_table(dest.file, dest.rank, piece, b);
+
+			*dest_piece = 0ULL;
+
+			b->captured_pieces[color][b->captured_pieces_count[color]] = dest_piece_id;
+			b->captured_pieces_count[color]++;
+			break;
+		case EN_PASSANT_MOVE:
+			if (piece_type(piece) == PAWN) {
+				uint8_t captured_pawn = b->square_table[dest.file - 1][src.rank - 1];
+
+				if (captured_pawn == EMPTY_SQUARE) {
+					return false;
+				}
+				uint64_t *captured_pawn_ptr = get_pointer_to_piece(captured_pawn, b);
+				if (!captured_pawn_ptr) {
+					return false;
+				}
+				*src_piece = get_bitboard(dest.file, dest.rank);
+				update_square_table(dest.file, dest.rank, piece, b);
+				update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
+
+				*captured_pawn_ptr = 0ULL;
+				update_square_table(dest.file, src.rank, EMPTY_SQUARE, b);
+
+				b->captured_pieces[color][b->captured_pieces_count[color]] = captured_pawn;
+				b->captured_pieces_count[color]++;
+			}
+			break;
+		case CASTLE_MOVE:
+			if (piece_type(piece) != KING) {
+				return false;
+			}
+
+			if ((b->castle_rights & (color == WHITE ? WHITE_CASTLE_RIGHTS : BLACK_CASTLE_RIGHTS)) == 0) {
+				return false;
+			}
+
+			if (dest.file == G) {
+				uint8_t rook = b->square_table[H - 1][src.rank - 1];
+				if (piece_type(rook) != ROOK || piece_color(rook) != color) {
+					return false;
+				}
+
+				uint64_t *rook_ptr = get_pointer_to_piece(rook, b);
+				if (!rook_ptr) {
+					return false;
+				}
+
+				*rook_ptr = get_bitboard(F, src.rank);
+				update_square_table(F, src.rank, rook, b);
+				update_square_table(H, src.rank, EMPTY_SQUARE, b);
+			} else {
+				uint8_t rook = b->square_table[A - 1][src.rank - 1];
+				if (piece_type(rook) != ROOK || piece_color(rook) != color) {
+					return false;
+				}
+
+				uint64_t *rook_ptr = get_pointer_to_piece(rook, b);
+				if (!rook_ptr) {
+					return false;
+				}
+
+				*rook_ptr = get_bitboard(D, src.rank);
+				update_square_table(D, src.rank, rook, b);
+				update_square_table(A, src.rank, EMPTY_SQUARE, b);
+			}
+			*src_piece = get_bitboard(dest.file, dest.rank);
+			update_square_table(dest.file, dest.rank, piece, b);
+			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
+			break;
+		case WHITE_PROMOTES_TO_KNIGHT:
+		case WHITE_PROMOTES_TO_ROOK:
+		case WHITE_PROMOTES_TO_BISHOP:
+		case WHITE_PROMOTES_TO_QUEEN:
+		case BLACK_PROMOTES_TO_KNIGHT:
+		case BLACK_PROMOTES_TO_ROOK:
+		case BLACK_PROMOTES_TO_BISHOP:
+		case BLACK_PROMOTES_TO_QUEEN:
+			uint8_t _p = new_piece(piece_type_from_promotion_flag(move_type), color, get_bitboard(dest.file, dest.rank), b);
+			if (!_p) {
+				return false;
+			}
+			*src_piece = 0ULL;
+			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
+
+			if (dest_piece_id != EMPTY_SQUARE) {
+				*dest_piece = 0ULL;
+
+				b->captured_pieces[color][b->captured_pieces_count[color]] = dest_piece_id;
+				b->captured_pieces_count[color]++;
+			}
+			break;
+
+		case INVALID_MOVE:
+			break;
+	}
+
+	return true;
+}
+
+void promotion_move_menu() {
+	wprintf(L"Promotion Menu\n");
+	wprintf(L"1. Kngiht  ");
+	wprintf(L"2. Bishop  ");
+	wprintf(L"3. Rook  ");
+	wprintf(L"4. Queen\n");
+	return;
+}
+
+short make_move(square src, square dest, short turn, board *b, bool is_engine) {
+	/*
+	    THIS FUNCTION WILL:
+	    1. indentify the type of the move
+	    2. make the move on the board: update the bitboards and square table
+	    3. update the move stack
+	    4. update the white and black boards
+	    5. return the type of the move
+	*/
+
+	uint8_t piece, dest_piece, color;
+	piece = b->square_table[src.file - 1][src.rank - 1];
+	dest_piece = b->square_table[dest.file - 1][dest.rank - 1];
+	color = piece_color(piece);
+
+	// wprintf(L"make move 1\n");
+	Move m = {
+	    .src = src,
+	    .dest = dest,
+	    .piece = piece,
+	    .captured_piece = dest_piece,
+	    .en_passant_square = b->en_passant_square,
+	    .promoted_piece = 0,
+	    .castle_rights = b->castle_rights,
+	    .type = INVALID_MOVE};
+
+	// check if the source square is empty
+	if (piece == EMPTY_SQUARE) {
+		// wprintf(L"Returned from make move because source square is empty.\n");
+		return INVALID_MOVE;
+	}
+	// check if the piece is of the same color as the turn
+	if (color != turn) {
+		// wprintf(L"Returned from make move because color and turn did not match. (%c,%d) -> (%c,%d)\n", src.file + 'A' - 1, src.rank, dest.file + 'A' - 1, dest.rank);
+		return INVALID_MOVE;
+	}
+
+	short status;
+
+	status = INVALID_MOVE;
+
+	if (dest_piece != EMPTY_SQUARE && piece_color(dest_piece) == color) {
+		return INVALID_MOVE;
+	}
+
+	if (dest_piece != EMPTY_SQUARE) {
+		status = CAPTURE_MOVE;
+	} else if (piece_type(piece) == PAWN) {
+		if (dest.file != src.file) {
+			if (dest_piece == EMPTY_SQUARE) {
+				// en passant move
+				status = EN_PASSANT_MOVE;
+				m.captured_piece = b->square_table[dest.file - 1][src.rank - 1];
+
+			} else {
+				status = CAPTURE_MOVE;
+			}
+		} else {
+			status = NORMAL_MOVE;
+		}
+	} else if (piece_type(piece) == KING) {
+		if (abs(dest.file - src.file) == 2) {
+			if (b->castle_rights)
+				status = CASTLE_MOVE;
+			else
+				return INVALID_MOVE;
+		} else {
+			status = NORMAL_MOVE;
+		}
+	} else {
+		status = NORMAL_MOVE;
+	}
+
+	if (piece_type(piece) == PAWN && ((color == BLACK && dest.rank == 1) || (color == WHITE && dest.rank == 8))) {
+		// promotion move
+		if (!is_engine) {
+			promotion_move_menu();
+			int choice;
+			scanf("%d", &choice);
+			switch (choice) {
+				case 1:
+					status = color == WHITE ? WHITE_PROMOTES_TO_KNIGHT : BLACK_PROMOTES_TO_KNIGHT;
+					m.promoted_piece = get_id_of_promoted_piece(KNIGHT, color, color == WHITE ? b->white->count.knights + 1 : b->black->count.knights + 1);
+					break;
+				case 2:
+					status = color == WHITE ? WHITE_PROMOTES_TO_BISHOP : BLACK_PROMOTES_TO_BISHOP;
+					m.promoted_piece = get_id_of_promoted_piece(BISHOP, color, color == WHITE ? b->white->count.bishops + 1 : b->black->count.bishops + 1);
+					break;
+				case 3:
+					status = color == WHITE ? WHITE_PROMOTES_TO_ROOK : BLACK_PROMOTES_TO_ROOK;
+					m.promoted_piece = get_id_of_promoted_piece(ROOK, color, color == WHITE ? b->white->count.rooks + 1 : b->black->count.rooks + 1);
+					break;
+				case 4:
+					status = color == WHITE ? WHITE_PROMOTES_TO_QUEEN : BLACK_PROMOTES_TO_QUEEN;
+					m.promoted_piece = get_id_of_promoted_piece(QUEEN, color, color == WHITE ? b->white->count.queens + 1 : b->black->count.queens + 1);
+					break;
+				default:
+					return INVALID_MOVE;
+			}
+		} else {
+			// IMPORTANT: ENGINE WILL ALWAYS PROMOTE TO QUEEN CHANGE BELOW SNIPPET IF YOU WANT TO MODIFY
+			status = color == WHITE ? WHITE_PROMOTES_TO_QUEEN : BLACK_PROMOTES_TO_QUEEN;
+			m.promoted_piece = get_id_of_promoted_piece(QUEEN, color, color == WHITE ? b->white->count.queens + 1 : b->black->count.queens + 1);
+		}
+	}
+
+	/* ================================MOVE===============================================*/
+
+	m.type = status;
+	bool flag = false;
+	if (get_bitboard(dest.file, dest.rank) & (color == WHITE ? b->white_lookup_table[lookup_index(piece)] : b->black_lookup_table[lookup_index(piece)])) {
+		flag = move(src, dest, status, b);
+		adjust_type_board_for_make_move(m, b);
+		// update_attacks(b);
+	} else {
+		wprintf(L"Returned from make move because move is not valid.\n");
+		return INVALID_MOVE;
+	}
+	if (!flag) {
+		return INVALID_MOVE;
+	}
+	push(b->moves, m);
+
+	if (piece_type(piece) == PAWN && abs(src.rank - dest.rank) == 2) {
+		b->en_passant_square = get_bitboard(src.file, color == WHITE ? 3 : 6);
+	} else {
+		b->en_passant_square = 0ULL;
+	}
+
+	// update castle rights
+
+	// do not check for castle flags if they are already set to invalid
+	if ((b->castle_rights & (color == WHITE ? WHITE_CASTLE_RIGHTS : BLACK_CASTLE_RIGHTS)) == 0)
+		return status;
+
+	// set the flags
+	// if king moves, remove all castle rights
+	if (piece_type(piece) == KING) {
+		if (color == WHITE) {
+			b->castle_rights &= 0b11110000;
+		} else {
+			b->castle_rights &= 0b00001111;
+		}
+	}
+	// if rook moves, remove the respective castle rights
+	else if (piece_type(piece) == ROOK) {
+		if (color == WHITE) {
+			if (src.file == A && src.rank == 1) {
+				b->castle_rights &= ~WHITE_QUEEN_SIDE_CASTLE_RIGHTS;
+			} else if (src.file == H && src.rank == 1) {
+				b->castle_rights &= ~WHITE_KING_SIDE_CASTLE_RIGHTS;
+			}
+		} else {
+			if (src.file == A && src.rank == 8) {
+				b->castle_rights &= ~BLACK_KING_SIDE_CASTLE_RIGHTS;
+			} else if (src.file == H && src.rank == 8) {
+				b->castle_rights &= ~BLACK_QUEEN_SIDE_CASTLE_RIGHTS;
+			}
+		}
+	}
+
+	// if two step pawn move, set en passant square
+
+	return status;
+}
+bool remove_memory_for_promoted_piece(uint8_t promoted_piece, board *b) {
+	short *counter = get_pointer_to_piece_counter(b, promoted_piece);
+	*counter -= 1;
+
+	uint64_t **type_ptr = get_pointer_to_piece_type(piece_color(promoted_piece), piece_type(promoted_piece), b);
+	if (!type_ptr || *counter < 0) {
+		return false;
+	}
+
+	// Store the result of realloc in a temporary variable
+	uint64_t *temp = (uint64_t *)realloc(*type_ptr, *counter * sizeof(uint64_t));
+
+	// Check if realloc succeeded
+	if (!temp && *counter > 0) {
+		fprintf(stderr, "Memory reallocation failed\n");
+		return false;
+	}
+
+	// Update type_ptr to the new memory location
+	*type_ptr = temp;
+
+	return true;
+}
+
+void undo_promotion(Move last_move, board *b) {
+	// restore the pawn to the source square
+	uint64_t *pawn_ptr = get_pointer_to_piece(last_move.piece, b);
+	*pawn_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+	update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+
+	// remove the promoted piece
+	uint64_t *promoted_piece_ptr = get_pointer_to_piece(last_move.promoted_piece, b);
+	*promoted_piece_ptr = 0ULL;
+
+	if (last_move.captured_piece != EMPTY_SQUARE) {
+		uint64_t *captured_piece_ptr = get_pointer_to_piece(last_move.captured_piece, b);
+		*captured_piece_ptr = get_bitboard(last_move.dest.file, last_move.dest.rank);
+		update_square_table(last_move.dest.file, last_move.dest.rank, last_move.captured_piece, b);
+
+		b->captured_pieces_count[piece_color(last_move.piece)]--;
+	} else {
+		update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
+	}
+	// deallocate memory for the promoted piece
+	remove_memory_for_promoted_piece(last_move.promoted_piece, b);
+
+	// restore castle rights and attack tables
+	b->castle_rights = last_move.castle_rights;
+	b->en_passant_square = last_move.en_passant_square;
+	return;
+}
+
+short unmake_move(board *b) {
+	Move last_move = pop(b->moves);
+	if (last_move.type == INVALID_MOVE) {
+		return INVALID_MOVE;
+	}
+	switch (last_move.type) {
+		case NORMAL_MOVE:
+			/*
+			    1. restore the piece bitboard to the biboard of the source square
+			    2. update the square table to reflect it
+			    3. restore the destination square to empty
+			    4. (additional) restore the castle rights, en passant square
+			*/
+			uint64_t *piece_ptr = get_pointer_to_piece(last_move.piece, b);
+			if (!piece_ptr) {
+				return false;
+			}
+			*piece_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+			update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+			update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
+
+			// restore castle rights
+			b->castle_rights = last_move.castle_rights;
+			b->en_passant_square = last_move.en_passant_square;
+			break;
+
+		case CAPTURE_MOVE:
+			/*
+			    1. restore the piece bitboard to the bitboard of the source square
+			    2. update the square table to reflect it
+			    3. restore the destination square to the captured piece
+			    4. restore the captured piece bitboard
+			    5. (optional) restore the castle rights
+			*/
+			uint64_t *src_piece_ptr = get_pointer_to_piece(last_move.piece, b);
+			uint64_t *dest_piece_ptr = get_pointer_to_piece(last_move.captured_piece, b);
+
+			if (!src_piece_ptr || !dest_piece_ptr) {
+				return false;
+			}
+
+			*src_piece_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+			update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+
+			*dest_piece_ptr = get_bitboard(last_move.dest.file, last_move.dest.rank);
+			update_square_table(last_move.dest.file, last_move.dest.rank, last_move.captured_piece, b);
+
+			// restore castle rights
+			b->castle_rights = last_move.castle_rights;
+			b->en_passant_square = last_move.en_passant_square;
+			b->captured_pieces_count[piece_color(last_move.piece)]--;
+			break;
+
+		case EN_PASSANT_MOVE:
+			/*
+			    1. restore the piece bitboard to the bitboard of the source square
+			    2. update the square table to reflect it
+			    3. restore the destination square to empty
+			    4. restore the captured piece bitboard
+			    5. update the square table to reflect it
+			    6. (optional) restore the castle rights
+			*/
+			uint64_t *source_piece_ptr = get_pointer_to_piece(last_move.piece, b);
+			uint64_t *captured_piece_ptr = get_pointer_to_piece(last_move.captured_piece, b);
+
+			if (!source_piece_ptr || !captured_piece_ptr) {
+				return false;
+			}
+
+			*source_piece_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+			update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+			update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
+
+			*captured_piece_ptr = get_bitboard(last_move.dest.file, last_move.src.rank);
+			update_square_table(last_move.dest.file, last_move.src.rank, last_move.captured_piece, b);
+
+			// restore castle rights
+			b->castle_rights = last_move.castle_rights;
+			b->en_passant_square = last_move.en_passant_square;
+			b->captured_pieces_count[piece_color(last_move.piece)]--;
+			break;
+
+		case CASTLE_MOVE:
+			/*
+			    1. restore the piece bitboard to the bitboard of the source square
+			    2. update the square table to reflect it
+			    3. restore the destination square to empty
+			    4. restore the rook bitboard
+			    5. update the square table to reflect it
+			    6. (optional) restore the castle rights
+			*/
+			uint64_t *king_ptr = get_pointer_to_piece(last_move.piece, b);
+			uint64_t *rook_ptr = NULL;
+
+			if (!king_ptr) {
+				return false;
+			}
+
+			*king_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+			update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+			update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
+
+			// king side castle
+			if (last_move.dest.file == G) {
+				uint8_t moved_rook = b->square_table[F - 1][last_move.src.rank - 1];
+				rook_ptr = get_pointer_to_piece(moved_rook, b);
+
+				if (!rook_ptr) {
+					wprintf(L"Rook pointer is null move couldn't be undone\n");
+					// we should ideally restore king to its original position
+					return false;
+				}
+
+				*rook_ptr = get_bitboard(H, last_move.src.rank);
+				update_square_table(H, last_move.src.rank, moved_rook, b);
+				update_square_table(F, last_move.src.rank, EMPTY_SQUARE, b);
+			}
+
+			// queen side castle
+			else if (last_move.dest.file == C) {
+				uint8_t moved_rook = b->square_table[D - 1][last_move.src.rank - 1];
+				rook_ptr = get_pointer_to_piece(moved_rook, b);
+
+				if (!rook_ptr) {
+					wprintf(L"Rook pointer is null move couldn't be undone\n");
+					// we should ideally restore king to its original position
+
+					/* 
+						*king_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+						update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+						update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
+						push(b->moves, last_move);
+					*/ 
+					return false;
+				}
+
+				*rook_ptr = get_bitboard(A, last_move.src.rank);
+				update_square_table(A, last_move.src.rank, moved_rook, b);
+				update_square_table(D, last_move.src.rank, EMPTY_SQUARE, b);
+			} else {
+				// restore king to its original position
+				*king_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+				update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+				update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
+				push(b->moves, last_move);
+				return false;
+			}
+
+			// restore castle rights
+			b->castle_rights = last_move.castle_rights;
+			b->en_passant_square = last_move.en_passant_square;
+			break;
+		case WHITE_PROMOTES_TO_KNIGHT:
+		case WHITE_PROMOTES_TO_BISHOP:
+		case WHITE_PROMOTES_TO_ROOK:
+		case WHITE_PROMOTES_TO_QUEEN:
+		case BLACK_PROMOTES_TO_KNIGHT:
+		case BLACK_PROMOTES_TO_BISHOP:
+		case BLACK_PROMOTES_TO_ROOK:
+		case BLACK_PROMOTES_TO_QUEEN:
+			undo_promotion(last_move, b);
+			break;
+		default:
+			break;
+	}
+
+	adjust_type_board_for_unmake_move(last_move, b);
+	return true;
+}
+
+void update_type_board(board *b, short turn) {
+	if (turn == WHITE) {
+		b->white_board = white_board(b);
+		b->black_board = black_board(b);
+	} else {
+		b->black_board = black_board(b);
+		b->white_board = white_board(b);
+	}
+}
+
+int lookup_index(uint8_t id) {
+	int promotion_flag = id & 64 ? 1 : 0;
+	int _piece_type = piece_type(id);
+	int _piece_number = piece_number(id);
+
+	int index = 1 + (promotion_flag * 48) + (_piece_type * 8) + _piece_number;
+	return index;
+}
+
+void update_attacks_for_color(board *b, short color) {
+	uint64_t white_attacks = 0ULL, black_attacks = 0ULL, piece_attacks = 0ULL;
+	int standard_bishop_knight_rooks = 2;
+	int standard_queens = 1;
+
+	short cursor = 0;
 	switch (color) {
-		case WHITE: {
+		case WHITE:
+
 			cursor = WHITE_PAWN_1;
 			for (int i = 0; i < b->white->count.pawns; i++) {
-				lookup_table |= generate_lookup_table(b->white->pawns[i], cursor, b);
+				piece_attacks = generate_pawn_attacks(cursor, b->white->pawns[i], b);
+				b->white_lookup_table[lookup_index(cursor)] = piece_attacks;
+				white_attacks |= piece_attacks;
 				cursor += 16;
 			}
 
 			cursor = WHITE_KNIGHT_1;
 			for (int i = 0; i < b->white->count.knights; i++) {
-				lookup_table |= generate_lookup_table(b->white->knights[i], cursor, b);
+				if (i > standard_bishop_knight_rooks)
+					cursor |= 64;  // set the MSB to 1
+
+				piece_attacks = generate_knight_attacks(cursor, b->white->knights[i], b);
+				b->white_lookup_table[lookup_index(cursor)] = piece_attacks;
+				white_attacks |= piece_attacks;
 				cursor += 16;
 			}
 
 			cursor = WHITE_BISHOP_1;
 			for (int i = 0; i < b->white->count.bishops; i++) {
-				lookup_table |= generate_lookup_table(b->white->bishops[i], cursor, b);
+				if (i > standard_bishop_knight_rooks)
+					cursor |= 64;  // set the MSB to 1
+
+				piece_attacks = generate_bishop_attacks(cursor, b->white->bishops[i], b);
+
+				b->white_lookup_table[lookup_index(cursor)] = piece_attacks;
+				white_attacks |= piece_attacks;
 				cursor += 16;
 			}
 
 			cursor = WHITE_ROOK_1;
 			for (int i = 0; i < b->white->count.rooks; i++) {
-				lookup_table |= generate_lookup_table(b->white->rooks[i], cursor, b);
+				if (i > standard_bishop_knight_rooks)
+					cursor |= 64;  // set the MSB to 1
+
+				piece_attacks = generate_rook_attacks(cursor, b->white->rooks[i], b);
+				b->white_lookup_table[lookup_index(cursor)] = piece_attacks;
+				white_attacks |= piece_attacks;
 				cursor += 16;
 			}
 
 			cursor = WHITE_QUEEN;
 			for (int i = 0; i < b->white->count.queens; i++) {
-				lookup_table |= generate_lookup_table(b->white->queen[i], cursor, b);
-				wprintf(L"queen no. %d, position: %llu -> \n", i, b->white->queen[i]);
-				print_square_from_bitboard(b->white->queen[i]);
-				wprintf(L"\n");
+				if (i > standard_queens)
+					cursor |= 64;  // set the MSB to 1
+
+				piece_attacks = generate_queen_attacks(cursor, b->white->queen[i], b);
+				b->white_lookup_table[lookup_index(cursor)] = piece_attacks;
+				white_attacks |= piece_attacks;
 				cursor += 16;
 			}
 
-			cursor = WHITE_KING;
-			lookup_table |= generate_lookup_table(b->white->king, cursor, b);
+			piece_attacks = generate_king_attacks(WHITE_KING, b->white->king, b);
+			b->white_lookup_table[lookup_index(WHITE_KING)] = piece_attacks;
+			white_attacks |= piece_attacks;
 
+			b->white_lookup_table[0] = white_attacks;
 			break;
-		}
-		case BLACK: {
+		case BLACK:
+
 			cursor = BLACK_PAWN_1;
 			for (int i = 0; i < b->black->count.pawns; i++) {
-				lookup_table |= generate_lookup_table(b->black->pawns[i], cursor, b);
+				piece_attacks = generate_pawn_attacks(cursor, b->black->pawns[i], b);
+				b->black_lookup_table[lookup_index(cursor)] = piece_attacks;
+				black_attacks |= piece_attacks;
 				cursor += 16;
 			}
-
 			cursor = BLACK_KNIGHT_1;
 			for (int i = 0; i < b->black->count.knights; i++) {
-				lookup_table |= generate_lookup_table(b->black->knights[i], cursor, b);
+				if (i > standard_bishop_knight_rooks)
+					cursor |= 64;  // set the MSB to 1
+
+				piece_attacks = generate_knight_attacks(cursor, b->black->knights[i], b);
+				b->black_lookup_table[lookup_index(cursor)] = piece_attacks;
+				black_attacks |= piece_attacks;
 				cursor += 16;
 			}
 
 			cursor = BLACK_BISHOP_1;
 			for (int i = 0; i < b->black->count.bishops; i++) {
-				lookup_table |= generate_lookup_table(b->black->bishops[i], cursor, b);
+				if (i > standard_bishop_knight_rooks)
+					cursor |= 64;  // set the MSB to 1
+
+				piece_attacks = generate_bishop_attacks(cursor, b->black->bishops[i], b);
+				b->black_lookup_table[lookup_index(cursor)] = piece_attacks;
+				black_attacks |= piece_attacks;
 				cursor += 16;
 			}
 
 			cursor = BLACK_ROOK_1;
 			for (int i = 0; i < b->black->count.rooks; i++) {
-				lookup_table |= generate_lookup_table(b->black->rooks[i], cursor, b);
+				if (i > standard_bishop_knight_rooks)
+					cursor |= 64;  // set the MSB to 1
+
+				piece_attacks = generate_rook_attacks(cursor, b->black->rooks[i], b);
+				b->black_lookup_table[lookup_index(cursor)] = piece_attacks;
+				black_attacks |= piece_attacks;
 				cursor += 16;
 			}
 
 			cursor = BLACK_QUEEN;
 			for (int i = 0; i < b->black->count.queens; i++) {
-				lookup_table |= generate_lookup_table(b->black->queen[i], cursor, b);
+				if (i > standard_queens)
+					cursor |= 64;  // set the MSB to 1
+
+				piece_attacks = generate_queen_attacks(cursor, b->black->queen[i], b);
+				b->black_lookup_table[lookup_index(cursor)] = piece_attacks;
+				black_attacks |= piece_attacks;
 				cursor += 16;
 			}
+			piece_attacks = generate_king_attacks(BLACK_KING, b->black->king, b);
+			b->black_lookup_table[lookup_index(BLACK_KING)] = piece_attacks;
+			black_attacks |= piece_attacks;
 
-			cursor = BLACK_KING;
-			lookup_table |= generate_lookup_table(b->black->king, cursor, b);
-
+			b->black_lookup_table[0] = black_attacks;
 			break;
-		}
-	}
-	return lookup_table;
-}
-
-board *copy_board(board *b) {
-	board *new_board = (board *)malloc(sizeof(board));
-	if (!new_board) {
-		return NULL;
-	}
-
-	// Allocate memory for white and black pieces
-	new_board->white = (pieces *)malloc(sizeof(pieces));
-	new_board->black = (pieces *)malloc(sizeof(pieces));
-
-	init_pieces(new_board->white);
-	init_pieces(new_board->black);
-
-	// Copy piece counts
-	new_board->white->count = b->white->count;
-	new_board->black->count = b->black->count;
-
-	// Copy the piece positions
-
-	/*
-	    Note: memcpy function
-	    why memcpy?
-	    The memcpy() function in C and C++ is used to copy a block of memory from one location to another.
-	    Unlike other copy functions, the memcpy function copies the specified number of bytes from one memory
-	    location to the other memory location regardless of the type of data stored.
-
-	    reference:
-	    1. https://dev.to/namantam1/ways-to-copy-struct-in-cc-3fl3 : This approach wouldn't work as it will copy dynamic
-	       address of the board structure and changes made on simulated board will affect original board.
-	    2. https://cstdspace.quora.com/How-to-copy-one-array-to-another-using-the-C-programming-language
-	*/
-
-	memcpy(new_board->white->pawns, b->white->pawns, sizeof(uint64_t) * b->white->count.pawns);
-	memcpy(new_board->white->knights, b->white->knights, sizeof(uint64_t) * b->white->count.knights);
-	memcpy(new_board->white->bishops, b->white->bishops, sizeof(uint64_t) * b->white->count.bishops);
-	memcpy(new_board->white->rooks, b->white->rooks, sizeof(uint64_t) * b->white->count.rooks);
-	memcpy(new_board->white->queen, b->white->queen, sizeof(uint64_t) * b->white->count.queens);
-
-	memcpy(new_board->black->pawns, b->black->pawns, sizeof(uint64_t) * b->black->count.pawns);
-	memcpy(new_board->black->knights, b->black->knights, sizeof(uint64_t) * b->black->count.knights);
-	memcpy(new_board->black->bishops, b->black->bishops, sizeof(uint64_t) * b->black->count.bishops);
-	memcpy(new_board->black->rooks, b->black->rooks, sizeof(uint64_t) * b->black->count.rooks);
-	memcpy(new_board->black->queen, b->black->queen, sizeof(uint64_t) * b->black->count.queens);
-
-	new_board->white->king = b->white->king;
-	new_board->black->king = b->black->king;
-
-	// Copy the square table
-	memcpy(new_board->square_table, b->square_table, sizeof(b->square_table));
-
-	new_board->en_pass_pawn = b->en_pass_pawn;
-	new_board->en_passant = b->en_passant;
-	new_board->castle_rights = b->castle_rights;
-	memcpy(new_board->attack_tables, b->attack_tables, sizeof(b->attack_tables));
-
-	return new_board;
-}
-
-// Checks if king of the given color is in check
-bool in_check(short color, board *b) {
-	if (b == NULL) return false;  // Check if board is NULL
-	uint64_t king, attack_table;
-
-	king = color == WHITE ? b->white->king : b->black->king;
-
-	// Get opponents attack table
-	// attack_table = color == WHITE ? b->attack_tables[BLACK] : b->attack_tables[WHITE];
-	attack_table = get_combined_lookup_table(b, !color);
-
-	/* DEBUGGING */
-	// if(piece_type(b->square_table[G-1][7]) == QUEEN) {
-	// 	wprintf(L"in check function log--------------------------\n");
-	// 	wprintf(L"\n%s King: \n", color == WHITE ? "White" : "Black");
-	// 	print_square_from_bitboard(king);
-	// 	wprintf(L"\n%s Attack Table: \n", color == WHITE ? "Black" : "White");
-	// 	print_moves(attack_table);
-	// }
-
-	return king & attack_table;
-}
-
-
-void move(square src, square dest, uint64_t *src_piece_ptr, uint64_t *dest_piece_ptr, short move_type, board *b) {
-	if (move_type == INVALID_MOVE) {
-		return;
-	}
-
-	if (dest_piece_ptr) {
-		move_type = CAPTURE_MOVE;
-	}
-
-	uint64_t move = get_bitboard(dest.file, dest.rank);
-
-
-	switch (move_type) {
-		case NORMAL_MOVE: {
-			*src_piece_ptr = move;
-			update_square_table(dest.file, dest.rank, b->square_table[src.file - 1][src.rank - 1], b);
-			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
-			break;
-		}
-		case CAPTURE_MOVE: {
-			*src_piece_ptr = move;
-			if (dest_piece_ptr) {
-				*dest_piece_ptr = 0ULL;  // Clear the bitboard of the captured piece
-			}
-			update_square_table(dest.file, dest.rank, b->square_table[src.file - 1][src.rank - 1], b);
-			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
-			break;
-		}
-		case EN_PASSANT_MOVE: {
-			uint8_t captured_pawn = b->square_table[dest.file - 1][src.rank - 1];
-			uint64_t *captured_pawn_ptr = get_pointer_to_piece(captured_pawn, b);
-
-			if(!captured_pawn_ptr)
-				return;
-
-			*src_piece_ptr = move;
-			*captured_pawn_ptr = 0ULL;
-
-			update_square_table(dest.file, dest.rank, b->square_table[src.file - 1][src.rank - 1], b);  // move source pawn to destination
-			update_square_table(src.file, src.rank, EMPTY_SQUARE, b); // clear source square
-			update_square_table(dest.file, src.rank, EMPTY_SQUARE, b); // clear captured pawn square
-			break;
-		}
-		case CASTLE_MOVE: {
-			/*
-				Here it is assumed that the castle rights are checked before calling this function.
-			*/
-			uint8_t color, piece;
-			piece = b->square_table[src.file - 1][src.rank - 1];
-
-			if(piece_type(piece) != KING)
-				return;
-
-			color = piece_color(b->square_table[src.file - 1][src.rank - 1]);			
-
-			/*
-				king movement is sorted out in validate_castle function
-				if king side castle then we have to move rook from hfile to ffile(2 squares to the left)
-				if queen side castle then we have to move rook from afile to dfile(3 squares to the right)
-			*/
-
-			/*
-				flow: 
-				1. update king bitboard as well as square table
-				2. check if its king side castle or queen side castle
-				3. move rook accordingly: update bitboard and square table
-			*/
-
-			*src_piece_ptr = move;
-			update_square_table(dest.file, dest.rank, piece, b);
-			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
-
-			if(dest.file == G) {
-				// king side castle
-				uint8_t rook = b->square_table[H - 1][src.rank - 1];
-				uint64_t *rook_ptr = get_pointer_to_piece(rook, b);
-
-				// move rook to the left side(west) by 2 squares
-				*rook_ptr = move_west(*rook_ptr, color);
-				*rook_ptr = move_west(*rook_ptr, color);
-				update_square_table(F, src.rank, rook, b);
-				update_square_table(H, src.rank, EMPTY_SQUARE, b);
-			}
-			else if(dest.file == C) {
-				// queen side castle
-				uint8_t rook = b->square_table[A - 1][src.rank - 1];
-				uint64_t *rook_ptr = get_pointer_to_piece(rook, b);
-
-				// move rook to the right side(east) by 3 squares
-				*rook_ptr = move_east(*rook_ptr, color);
-				*rook_ptr = move_east(*rook_ptr, color);
-				*rook_ptr = move_east(*rook_ptr, color);
-				update_square_table(D, src.rank, rook, b);
-				update_square_table(A, src.rank, EMPTY_SQUARE, b);
-			}
-			break;
-		}
-		case WHITE_PROMOTES_TO_KNIGHT: {
-			// this new piece function allocates memory for new piece and also updates its bitboard and square table entry
-			uint8_t new_knight = new_piece(WHITE, KNIGHT, move, b);
-			
-			// the src piece is pawn so we need to clear the pawn bitboard
-			*src_piece_ptr = 0ULL;
-			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
-
-			break;
-		}
-		case WHITE_PROMOTES_TO_BISHOP: {
-			uint8_t new_bishop = new_piece(WHITE, BISHOP, move, b);
-			*src_piece_ptr = 0ULL;
-			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
-			break;
-		}
-		case WHITE_PROMOTES_TO_ROOK: {
-			uint8_t new_rook = new_piece(WHITE, ROOK, move, b);
-			*src_piece_ptr = 0ULL;
-			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
-			break;
-		}
-		case WHITE_PROMOTES_TO_QUEEN: {
-			uint8_t new_queen = new_piece(WHITE, QUEEN, move, b);
-			wprintf(L"new queen: %d\n", new_queen);
-
-			*src_piece_ptr = 0ULL;
-
-			wprintf(L"in move function\n");
-			for(int i = 0; i < b->white->count.queens; i++) {
-				wprintf(L"queen no. %d, position: ", i);
-				print_square_from_bitboard(b->white->queen[i]);
-				wprintf(L"\n");
-			}
-
-			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
-			break;
-		}
-		case BLACK_PROMOTES_TO_KNIGHT: {
-			uint8_t new_knight = new_piece(BLACK, KNIGHT, move, b);
-			*src_piece_ptr = 0ULL;
-			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
-			break;
-		}
-		case BLACK_PROMOTES_TO_BISHOP: {
-			uint8_t new_bishop = new_piece(BLACK, BISHOP, move, b);
-			*src_piece_ptr = 0ULL;
-			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
-			break;
-		}
-		case BLACK_PROMOTES_TO_ROOK: {
-			uint8_t new_rook = new_piece(BLACK, ROOK, move, b);
-			*src_piece_ptr = 0ULL;
-			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
-			break;
-		}
-		case BLACK_PROMOTES_TO_QUEEN: {
-			uint8_t new_queen = new_piece(BLACK, QUEEN, move, b);
-			*src_piece_ptr = 0ULL;
-			update_square_table(src.file, src.rank, EMPTY_SQUARE, b);
-			break;
-		}
 		default:
 			break;
 	}
 }
 
-short simulate_move(square src, square dest, short turn, board *b) {
-	if (b == NULL) return INVALID_MOVE;  // Check if board is NULL
+void update_attacks(board *b) {
+	b->white_attacks->move_count = 0;
+	update_attacks_for_color(b, WHITE);
 
-	board *simulation_board = copy_board(b);
-	if (simulation_board == NULL) {
-		return INVALID_MOVE;  // Handle allocation failure
-	}
-
-	uint8_t piece = simulation_board->square_table[src.file - 1][src.rank - 1];
-	uint8_t dest_piece = simulation_board->square_table[dest.file - 1][dest.rank - 1];
-
-	// Validate that the piece belongs to the current turn
-	if (piece_color(piece) != turn) {
-		free(simulation_board->black);
-		free(simulation_board->white);
-		free(simulation_board);
-		return INVALID_MOVE;
-	}
-
-	// Determine move type (normal move, capture, etc.)
-	short move_type = (dest_piece != EMPTY_SQUARE) ? CAPTURE_MOVE : NORMAL_MOVE;
-
-	// Get pointers to the pieces
-	uint64_t *src_piece_ptr = get_pointer_to_piece(piece, simulation_board);
-	uint64_t *dest_piece_ptr = (dest_piece != EMPTY_SQUARE) ? get_pointer_to_piece(dest_piece, simulation_board) : NULL;
-
-
-	if (piece_type(piece) == PAWN && absolute(src.rank - dest.rank) == 1 && dest_piece == EMPTY_SQUARE) {
-		Move last_move = peek(moves);
-		if ((last_move.piece & 7)== PAWN && absolute(last_move.src.rank - last_move.dest.rank) == 2 && absolute(last_move.dest.file - src.file) == 1) {
-			move_type = EN_PASSANT_MOVE;
-		}
-	}
-
-
-	// check if the move is castling
-	if (piece_type(piece) == KING && absolute(src.file - dest.file) == 2) {
-		move_type = CASTLE_MOVE;
-	}
-	// wprintf(L"moving %d to ", piece);
-	// print_square_from_bitboard(get_bitboard(dest.file, dest.rank));;
-	// wprintf(L"\n");
-
-	// Simulate the move using the move() function
-	move(src, dest, src_piece_ptr, dest_piece_ptr, move_type, simulation_board);
-
-	// Check if the move results in the king being in check
-	if (in_check(turn, simulation_board)) {
-		free(simulation_board->black);
-		free(simulation_board->white);
-		free(simulation_board);
-		return 0;  // King is in check after move
-	}
-
-	// Free allocated memory for the simulation board
-	free(simulation_board->black);
-	free(simulation_board->white);
-	free(simulation_board);
-
-	return 1;  // Move is valid, king is not in check
-}
-
-// Ensure you only call this in a controlled manner
-uint64_t generate_legal_moves(uint64_t piece_bitboard, uint8_t piece_id, short turn, board *b) {
-	uint64_t legal_moves;
-	square src, dest;
-
-	legal_moves = generate_lookup_table(piece_bitboard, piece_id, b);
-	src = get_square_from_bitboard(piece_bitboard);
-
-	// Check each potential move to ensure it doesn't leave the king in check
-	for (int i = 0; i < 64; i++) {
-		uint64_t dest_bitboard = 1ULL << i;
-		if (legal_moves & dest_bitboard) {
-			dest = get_square_from_bitboard(dest_bitboard);
-			if (!simulate_move(src, dest, turn, b)) {
-				legal_moves &= ~dest_bitboard;  // Mask out invalid move
-			}
-		}
-	}
-
-	return legal_moves;
-}
-
-/*
-    Function to generate attack table of white and black pieces
-    Attack tables are different from lookup tables. Lookup tables just give us lookup vectors for one piece but attack tables give us all the possible moves of all the pieces of a particular color.
-
-    Attack table is generated by ORing all the legal moves of all the pieces of a particular color
-
-    Why do we need attack tables? :- attack tables are needed to check if the king is in check or not after every move. If the king is in check then the move is invalid.
-*/
-uint64_t generate_attack_tables_for_color(uint8_t color, board *b) {
-	uint64_t attack_table = 0ULL;
-	uint8_t cursor;
-
-	if (color == WHITE) {
-		cursor = WHITE_PAWN_1;
-		for (int i = 0; i < b->white->count.pawns; i++) {
-			attack_table |= generate_legal_moves(b->white->pawns[i], cursor, color, b);
-			cursor += 16;
-		}
-
-		cursor = WHITE_KNIGHT_1;
-		for (int i = 0; i < b->white->count.knights; i++) {
-			attack_table |= generate_legal_moves(b->white->knights[i], cursor, color, b);
-			cursor += 16;
-		}
-
-		cursor = WHITE_BISHOP_1;
-		for (int i = 0; i < b->white->count.bishops; i++) {
-			attack_table |= generate_legal_moves(b->white->bishops[i], cursor, color, b);
-			cursor += 16;
-		}
-
-		cursor = WHITE_ROOK_1;
-		for (int i = 0; i < b->white->count.rooks; i++) {
-			attack_table |= generate_legal_moves(b->white->rooks[i], cursor, color, b);
-			cursor += 16;
-		}
-
-		cursor = WHITE_QUEEN;
-		for (int i = 0; i < b->white->count.queens; i++){
-			attack_table |= generate_legal_moves(b->white->queen[i], cursor, color, b);
-			cursor += 16;
-		}
-
-		cursor = WHITE_KING;
-		attack_table |= generate_legal_moves(b->white->king, cursor, color, b);
-	} else {
-		cursor = BLACK_PAWN_1;
-		for (int i = 0; i < b->black->count.pawns; i++) {
-			attack_table |= generate_legal_moves(b->black->pawns[i], cursor, color, b);
-			cursor += 16;
-		}
-
-		cursor = BLACK_KNIGHT_1;
-		for (int i = 0; i < b->black->count.knights; i++) {
-			attack_table |= generate_legal_moves(b->black->knights[i], cursor, color, b);
-			cursor += 16;
-		}
-
-		cursor = BLACK_BISHOP_1;
-		for (int i = 0; i < b->black->count.bishops; i++) {
-			attack_table |= generate_legal_moves(b->black->bishops[i], cursor, color, b);
-			cursor += 16;
-		}
-
-		cursor = BLACK_ROOK_1;
-		for (int i = 0; i < b->black->count.rooks; i++) {
-			attack_table |= generate_legal_moves(b->black->rooks[i], cursor, color, b);
-			cursor += 16;
-		}
-
-		cursor = BLACK_QUEEN;
-		for (int i = 0; i < b->black->count.queens; i++){
-			attack_table |= generate_legal_moves(b->black->queen[i], cursor, color, b);
-			cursor += 16;
-		}
-
-
-		cursor = BLACK_KING;
-		attack_table |= generate_legal_moves(b->black->king, cursor, color, b);
-	}
-
-	return attack_table;
-}
-
-void update_attack_tables(board *b, short turn) {
-	if (turn == WHITE) {
-		b->attack_tables[WHITE] = generate_attack_tables_for_color(WHITE, b);
-		b->attack_tables[BLACK] = generate_attack_tables_for_color(BLACK, b);
-	} else {
-		b->attack_tables[BLACK] = generate_attack_tables_for_color(BLACK, b);
-		b->attack_tables[WHITE] = generate_attack_tables_for_color(WHITE, b);
-	}
-
-	wprintf(L"Attack tables updated\nwhite: ");
-	print_moves(b->attack_tables[WHITE]);
-
-	wprintf(L"black: ");
-	print_moves(b->attack_tables[BLACK]);
-}
-
-void promotion_move_menu() {
-	wprintf(L"Promotion Menu\n");
-	wprintf(L"1. Queen  ");
-	wprintf(L"2. Rook  ");
-	wprintf(L"3. Bishop  ");
-	wprintf(L"4. Knight\n");
+	b->black_attacks->move_count = 0;
+	update_attacks_for_color(b, BLACK);
 	return;
 }
 
-// function to make a move
-short make_move(square src, square dest, short turn, board *b) {
-	/*
-	    throughout the function:
-	    * piece refers to the piece that is being moved
-	    * dest_piece refers to the piece that is being captured rather piece at the
-	      destination square
-	*/
-	uint8_t piece, dest_piece, color;
+bool in_check(short color, board *b) {
+	uint64_t king_position = color == WHITE ? b->white->king : b->black->king;
 
-	piece = b->square_table[src.file - 1][src.rank - 1];
-	dest_piece = b->square_table[dest.file - 1][dest.rank - 1];
-	color = piece_color(piece);
-
-	// check if the piece is of the same color as the turn
-	if (color != turn) {
-		return INVALID_MOVE;
-	}
-
-	// check if the destination square is empty or not
-	if (piece == EMPTY_SQUARE) {
-		return INVALID_MOVE;
-	}
-
-	uint64_t piece_bitboard, _move, legal_moves, *piece_ptr, *dest_piece_ptr;
-	short status;
-
-	status = INVALID_MOVE;
-	piece_ptr = get_pointer_to_piece(piece, b);
-	dest_piece_ptr = NULL;
-
-	// get bitboard of the piece
-	piece_bitboard = *piece_ptr;
-	legal_moves = generate_legal_moves(piece_bitboard, piece, turn, b);
-
-	// represent a move with a bitboard
-	_move = get_bitboard(dest.file, dest.rank);
 	
-
-	// check if the move is legal
-	if (_move & legal_moves) {
-		// !!: This is a caputure move
-		if (dest_piece != EMPTY_SQUARE) {
-			dest_piece_ptr = get_pointer_to_piece(dest_piece, b);
-			status = CAPTURE_MOVE;
-		} else {
-			dest_piece_ptr = NULL;
-			status = NORMAL_MOVE;
-		}
-
-		// check if the move is enpassant
-		if (piece_type(piece) == PAWN && absolute(src.rank - dest.rank) == 1 && dest_piece == EMPTY_SQUARE) {
-			Move last_move = peek(moves);
-			if ((last_move.piece & (uint8_t)7) == PAWN && absolute(last_move.src.rank - last_move.dest.rank) == 2 &&
-			    last_move.dest.file == dest.file) {
-				status = EN_PASSANT_MOVE;
-			}
-		}
-
-		// check if the move is castling
-		if (piece_type(piece) == KING && absolute(src.file - dest.file) == 2) {
-			status = CASTLE_MOVE;
-		}
-
-		if(piece_type(piece) == PAWN && color == WHITE && dest.rank == 8) {
-			promotion_move_menu();
-			int choice;
-			scanf("%d", &choice);
-			
-			switch(choice) {
-				case 1:
-					status = WHITE_PROMOTES_TO_QUEEN;
-					break;
-				case 2:
-					status = WHITE_PROMOTES_TO_ROOK;
-					break;
-				case 3:
-					status = WHITE_PROMOTES_TO_BISHOP;
-					break;
-				case 4:
-					status = WHITE_PROMOTES_TO_KNIGHT;
-					break;
-				default:
-					printf("Invalid choice\n");
-					return INVALID_MOVE;
-			}
-		}
-		else if(piece_type(piece) == PAWN && color == BLACK && dest.rank == 1) {
-			promotion_move_menu();
-			int choice;
-			wscanf(L"%d", &choice);
-
-			switch(choice) {
-				case 1:
-					status = BLACK_PROMOTES_TO_QUEEN;
-					break;
-				case 2:
-					status = BLACK_PROMOTES_TO_ROOK;
-					break;
-				case 3:
-					status = BLACK_PROMOTES_TO_BISHOP;
-					break;
-				case 4:
-					status = BLACK_PROMOTES_TO_KNIGHT;
-					break;
-				default:
-					printf("Invalid choice\n");
-					return INVALID_MOVE;
-			}			
-
-		}
-
-
-		move(src, dest, piece_ptr, dest_piece_ptr, status, b);
-		Move m = {src, dest, piece, dest_piece, status};
-		push(&moves, m);
-
-		wprintf(L"in make move\n");
-
-					for(int i = 0; i < b->white->count.queens; i++) {
-				wprintf(L"queen no. %d, position: ", i);
-				print_square_from_bitboard(b->white->queen[i]);
-				wprintf(L"\n");
-			}
-
-
-		// do not check for castle flags if they are already set to invalid
-		if((b->castle_rights & (color == WHITE ? WHITE_CASTLE_RIGHTS : BLACK_CASTLE_RIGHTS)) == 0)
-			return status;
-
-		// set the flags
-		if (piece_type(piece) == KING) {
-			if (color == WHITE) {
-				b->castle_rights &= ~WHITE_CASTLE_RIGHTS;
-			} else {
-				b->castle_rights &= ~BLACK_CASTLE_RIGHTS;
-			}
-		}
-		else if(piece_type(piece) == ROOK) {
-			if (color == WHITE) {
-				if (src.file == A && src.rank == 1) {
-					b->castle_rights &= ~WHITE_QUEEN_SIDE_CASTLE_RIGHTS;
-				} else if (src.file == H && src.rank == 1) {
-					b->castle_rights &= ~WHITE_KING_SIDE_CASTLE_RIGHTS;
-				}
-			} else {
-				if (src.file == A && src.rank == 8) {
-					b->castle_rights &= ~BLACK_KING_SIDE_CASTLE_RIGHTS;
-				} else if (src.file == H && src.rank == 8) {
-					b->castle_rights &= ~BLACK_QUEEN_SIDE_CASTLE_RIGHTS;
-				}
-			}
-		}
-
+	if (color == WHITE) {
+		b->black_attacks->move_count = 0;
+	} else {
+		b->white_attacks->move_count = 0;
 	}
-	return status;
+	clear_move_list(color == WHITE ? b->black_attacks : b->white_attacks);
+	update_attacks_for_color(b, color == WHITE ? BLACK : WHITE);
+
+	uint64_t opponent_attacks = color == WHITE ? b->black_lookup_table[0] : b->white_lookup_table[0];
+
+	return (king_position & opponent_attacks);
 }
+void print_move(Move m) {
+	wprintf(L"(%c, %d) -> (%c, %d), piece : %d, captured piece : %d, promoted piece : %d, castle rights : %d, type : %d\n", m.src.file + 'A' - 1, m.src.rank, m.dest.file + 'A' - 1, m.dest.rank, m.piece, m.captured_piece, m.promoted_piece, m.castle_rights, m.type);
+}
+void filter_legal_moves(board *b, short turn) {
+	MoveList *pseudo_legal_moves = turn == WHITE ? b->white_attacks : b->black_attacks;   // pseudo legal
+	MoveList *legal_moves = turn == WHITE ? b->white_legal_moves : b->black_legal_moves;  // legal
+
+	if (!pseudo_legal_moves || !pseudo_legal_moves->moves || pseudo_legal_moves->move_count == 0) {
+		wprintf(L"No pseudo-legal moves to filter for %s.\n", turn == WHITE ? "WHITE" : "BLACK");
+		return;
+	}
+
+	// Clear the legal moves list to start fresh
+	clear_move_list(legal_moves);
+
+	for (int i = 0; i < pseudo_legal_moves->move_count; i++) {
+		Move *current_move_ptr = pseudo_legal_moves->moves[i];
+		if (!current_move_ptr) continue;
+
+		Move current_move = *current_move_ptr;
+
+		short status = make_move(current_move.src, current_move.dest, turn, b, true);
+
+		if (status == INVALID_MOVE) {
+			continue;
+		}
+
+		if (!in_check(turn, b)) {
+			// If the move does not leave the player in check, it's legal
+			add_move(legal_moves, current_move);
+		}
+
+		unmake_move(b);  // Undo the move to restore board state
+	}
+
+}
+
+/*
+
+void filter_legal_moves(board *b, short turn) {
+    MoveList *list = turn == WHITE ? b->white_attacks : b->black_attacks;
+    if (!list || !list->head) return;
+
+    wprintf(L"Filtering moves: turn = %c\n", turn == WHITE ? 'W' : 'B');
+    print_movelist(list);
+
+
+    MoveNode *p = list->head;
+    int count = list->move_count;
+    int i = 0;
+    while (p != NULL && i < count) {
+        MoveNode *next = p->next;  // Store the next node before potentially removing `p`
+
+        short status = make_move((p->move).src, p->move.dest, turn, b, true);
+        if (status == INVALID_MOVE || in_check(turn, b)) {
+            // Remove the move if it's invalid or puts the king in check
+            remove_node(list, p);
+            if (turn == WHITE) {
+                b->white_lookup_table &= ~(get_bitboard((p->move).dest.file, (p->move).dest.rank));
+            } else {
+                b->black_lookup_table &= ~(get_bitboard((p->move).dest.file, (p->move).dest.rank));
+            }
+        }
+        if(status != INVALID_MOVE) {
+            unmake_move(b);  // Undo the move on the board
+        }
+        p = next;  // Move to the next node
+
+        i++;
+    }
+    wprintf(L"Filtered moves\n");
+    return;
+}
+
+*/

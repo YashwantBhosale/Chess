@@ -1,11 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include<stdbool.h>
+#include <stdbool.h>
 #include "chessboard.h"
 #include "move_stack.h"
-
+#include <wchar.h>
 
 void init_move_stack(move_stack *s) {
+	if(!s){
+		wprintf(L"INVALID STACK POINTER!\n");
+		exit(1);
+	}
 	s->top = NULL;
 	s->size = 0;
 	return;
@@ -25,7 +29,6 @@ Move peek(move_stack s) {
 		Move m = {0};
 		return m;
 	}
-
 	return (s.top)->move;
 }
 

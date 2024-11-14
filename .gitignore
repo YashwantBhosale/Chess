@@ -2,3 +2,7 @@
 *.out
 *.zip
 *.txt
+.vscode/
+*.png
+*.log
+*.exe
