@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 #include <limits.h>
+
 #include "chessboard.h"
 #include "move_types.h"
 #include "moves.h"

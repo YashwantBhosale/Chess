@@ -10,6 +10,7 @@
 #include "moves.h"
 #include "move_array.h"
 #include "move_stack.h"
+#include "evaluation.h"
 
 // helper functions
 uint64_t rankmask(int rank) {

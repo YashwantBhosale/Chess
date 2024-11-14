@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+
 #include "chessboard.h"
 #include "move_types.h"
 #include "moves.h"
@@ -13,14 +14,16 @@
 // piece color
 uint8_t piece_color(uint8_t piece_id) {
 	return piece_id & 8 ? BLACK : WHITE;
+	return piece_id & 8 ? BLACK : WHITE;
 }
 
-// piece type
+/* get piece type */
 uint8_t piece_type(uint8_t piece_id) {
+	return piece_id & 7;
 	return piece_id & 7;
 }
 
-// piece number
+/* get piece number */
 uint8_t piece_number(uint8_t piece_id) {
 	return (piece_id & 0b01110000) >> 4;
 }
@@ -40,7 +43,7 @@ uint64_t get_bitboard(uint8_t file, uint8_t rank) {
 	return (bitboard << index);
 }
 
-// function to get rank and file from bitboard
+// get rank and file from bitboard
 void get_rank_and_file_from_bitboard(uint64_t bitboard, int *file, int *rank) {
 	if (!bitboard) {
 		*file = 0;
@@ -74,7 +77,7 @@ square get_square_from_bitboard(uint64_t bitboard) {
 	return s;
 }
 
-/* function to get compiled postion of white or black pieces*/
+/* get compiled postion of white or black pieces*/
 uint64_t get_type_board(pieces *type, board *b) {
 	uint64_t type_board = 0ULL;
 
@@ -592,6 +595,7 @@ void print_board(board *b, short turn) {
 		}
 		/* Print rank after printing each line */
 		wprintf(L" %d\n", rank);
+	}
 	}
 
 	/* Print files to guide the user */

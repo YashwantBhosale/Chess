@@ -60,7 +60,7 @@ void two_player(board *b) {
 	wprintf(L"rooks = %d\n", b->white->count.rooks);
 	update_attacks(b);
 
-	while (1) {
+	while(1) {
 		clrscr();
 
 		print_board(b, turn);
@@ -146,6 +146,7 @@ void single_player(board *b) {
 		update_attacks(b);
 		turn = !turn;
 	}
+	return;
 }
 
 int main() {
@@ -155,3 +156,23 @@ int main() {
 	single_player(&b);
 	return 0;
 }
+
+/*
+int main() {
+    setlocale(LC_CTYPE, "");
+    board b, *simulation_board;
+    init_board(&b);
+    print_board(&b, WHITE);
+
+    square src, dest;
+    src.file = E;
+    src.rank = 2;
+
+    dest.file = E;
+    dest.rank = 4;
+
+    short status = make_move(src, dest, WHITE, &b);
+    print_board(&b, BLACK);
+    return 0;
+}
+*/
