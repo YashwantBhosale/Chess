@@ -11,8 +11,6 @@ as 1.
 enum colors {
 	WHITE = 0,
 	BLACK = 1
-	WHITE = 0,
-	BLACK = 1
 };
 
 /*
@@ -22,14 +20,6 @@ they are enumerated so that we can understand that we are referring to file
 on the chessboard.
 */
 enum Files {
-	A = 1,
-	B = 2,
-	C = 3,
-	D = 4,
-	E = 5,
-	F = 6,
-	G = 7,
-	H = 8
 	A = 1,
 	B = 2,
 	C = 3,
@@ -52,8 +42,8 @@ enum Files {
     design is when a particular piece needs iformation about the piece on some
     other square.
 
-PIECE IDs themselves aren't very useful
-They are used with the square table to get the piece on a particular square.
+    piece ids themselves aren't very very useful they are used with the square
+    table to get the piece on a particular square.
 
     Potential issue:
     After pawn promotion, we may have more pieces whose ids are not defined here.
@@ -96,10 +86,9 @@ They are used with the square table to get the piece on a particular square.
     0000 0110 -> king    0000 1110 -> black king
 */
 
-/* PIECE IDS */
+// piece ids
 #define EMPTY_SQUARE 0
-
-/* WHITE PIECES */
+// White pieces
 #define WHITE_PAWN_1 1
 #define WHITE_PAWN_2 17
 #define WHITE_PAWN_3 33
@@ -121,7 +110,7 @@ They are used with the square table to get the piece on a particular square.
 #define WHITE_QUEEN 5
 #define WHITE_KING 6
 
-/* BLACK PIECES */
+// Black pieces
 #define BLACK_PAWN_1 9
 #define BLACK_PAWN_2 25
 #define BLACK_PAWN_3 41
@@ -162,13 +151,11 @@ enum { PAWN = 1,
 #define BLACK_KING_SIDE_CASTLE_RIGHTS 0b01010000
 #define BLACK_QUEEN_SIDE_CASTLE_RIGHTS 0b01100000
 /*
-Structure for Pieces:
-
-- Design:
-Each type of piece is mostly an array of bitboards.
-This array is dynamically allocated so that we can
-have a variable number of pieces of a particular type.
-This is in alignment with the pawn promotion rule in chess.
+    Structure for pieces:
+    * Design:
+    each type of piece is mostly an array of bitboards. This array is dynamically
+    allocated so that we can have a variable number of pieces of a particular type.
+    This is in alignment with the pawn promotion rule in chess.
 
     * purpose:
     The purpose of defining structure for pieces is because we have two types of
@@ -195,12 +182,11 @@ typedef struct pieces {
 } pieces;
 
 /*
-Structure for Global Board State:
-
-- Design:
-	1. there are two malloced pieces structures, one for WHITE and one for BLACK.
-	2. there is square table to keep track of what piece is on a particular square.
-	... More to be added as we progress. (like castling rights, en passant square etc.)
+    Structure for global board state:
+    * Design:
+    1. there are two malloced pieces structures, one for white and one for black.
+    2. there is square table to keep track of what piece is on a particular square.
+    ... More to be added as we progress. (like castling rights, en passant square etc.)
 */
 
 typedef struct {
