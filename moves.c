@@ -1473,6 +1473,40 @@ bool in_check(short color, board *b) {
 void print_move(Move m) {
 	wprintf(L"(%c, %d) -> (%c, %d), piece : %d, captured piece : %d, promoted piece : %d, castle rights : %d, type : %d\n", m.src.file + 'A' - 1, m.src.rank, m.dest.file + 'A' - 1, m.dest.rank, m.piece, m.captured_piece, m.promoted_piece, m.castle_rights, m.type);
 }
+
+unsigned int get_score(Move m) {
+	/*
+		Ideas:
+		1. In general, a capture move has greater probability of being great move
+		2. A move that puts the opponent in check is a good move
+		3. A move that puts the opponent in checkmate is the best move (PENDING)
+		4. A move that puts the opponent in stalemate is the worst move (PENDING)
+		5. promotion moves are generally good moves
+
+		more polished ideas:
+		1. A move that involves capture of high value piece with a low value piece is a good move
+		   here, we will assign extra points to the move
+		2. promotion + capture is a great move
+		3. promotion + check is a great move
+		4. castling is generally a good move (especially if the 7th or 2nd rank pawns are still there)
+		5. a move that reduces opponent's number of legal moves is a good move (here we can just 
+		   check the pseudo legal moves as filtering opponent's legal moves is again compuationally
+		   expensive).
+		6. a move that increases the number of legal moves for the player is a good move (Not sure
+		   about this one)
+
+		more specific to piece ideas:
+		1. A move that encourages knights and bishops to move to the center of the board is a good move
+		   (we will assign very little extra points to the move so that this is only done when all other
+			moves are almost equal)
+			NOTE: here if both the pieces have equal probability of moving to the center, we will choose
+			knight, as it seems more useless at the corner of the board
+	
+		there is no computationally cheap way to determine if a move is a checkmate or stalemate
+		at the current design so we will not consider them for now
+	*/
+}
+
 void filter_legal_moves(board *b, short turn) {
 	MoveList *pseudo_legal_moves = turn == WHITE ? b->white_attacks : b->black_attacks;   // pseudo legal
 	MoveList *legal_moves = turn == WHITE ? b->white_legal_moves : b->black_legal_moves;  // legal
