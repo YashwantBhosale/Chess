@@ -2,6 +2,7 @@
 #define MOVE_TYPES_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "chessboard.h"
 
 
@@ -16,6 +17,9 @@ typedef struct {
 
 	uint8_t castle_rights;
 	uint8_t type;
+
+	bool is_check;
+	unsigned int score;
 } Move;
 
 #define NORMAL_MOVE 0

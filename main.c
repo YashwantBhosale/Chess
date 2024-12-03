@@ -104,9 +104,11 @@ void single_player(board *b) {
 	load_fen(b, STARTING_FEN);
 	short turn = WHITE;
 	update_attacks(b);
+	double evaluation = 0;
 
 	while (1) {
 		clrscr();
+		display_evaluation(evaluation);
     	print_board(b, BLACK);
 		filter_legal_moves(b, turn);
 		if (turn == WHITE && b->white_legal_moves->move_count == 0) {
@@ -133,7 +135,9 @@ void single_player(board *b) {
 			wprintf(L"Thinking...\n");
             uint64_t lookup_table_backup[97];
             memcpy(lookup_table_backup, turn == WHITE ? b->white_lookup_table : b->black_lookup_table, sizeof(lookup_table_backup));
+			
 			evaluated_move eval = minimax(b, 3, turn, INT_MIN, INT_MAX);
+			evaluation = eval.evaluation;
 
             memcpy(turn == WHITE ? b->white_lookup_table : b->black_lookup_table, lookup_table_backup, sizeof(lookup_table_backup));
 			wprintf(L"Best move: ");
@@ -152,8 +156,8 @@ void single_player(board *b) {
 int main() {
 	setlocale(LC_ALL, "");
 	board b;
-	// two_player(&b);
-	single_player(&b);
+	two_player(&b);
+	// single_player(&b);
 	return 0;
 }
 

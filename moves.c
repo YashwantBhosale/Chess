@@ -1474,7 +1474,7 @@ void print_move(Move m) {
 	wprintf(L"(%c, %d) -> (%c, %d), piece : %d, captured piece : %d, promoted piece : %d, castle rights : %d, type : %d\n", m.src.file + 'A' - 1, m.src.rank, m.dest.file + 'A' - 1, m.dest.rank, m.piece, m.captured_piece, m.promoted_piece, m.castle_rights, m.type);
 }
 
-unsigned int get_score(Move m) {
+unsigned int get_score(Move m, board *b) {
 	/*
 		Ideas:
 		1. In general, a capture move has greater probability of being great move
@@ -1505,6 +1505,58 @@ unsigned int get_score(Move m) {
 		there is no computationally cheap way to determine if a move is a checkmate or stalemate
 		at the current design so we will not consider them for now
 	*/
+
+	unsigned int score = 0;
+
+	// 1. capture move advantage
+	if (m.type == CAPTURE_MOVE) {
+		score += 10;
+	}	
+
+	// 2. check move advantage
+	if (m.is_check) {
+		score += 20;
+	}
+
+	// 3. promotion move advantage
+	if (m.promoted_piece != 0) {
+		score += 15;
+	}
+
+	// 4. promotion + capture move advantage
+	if (m.type == CAPTURE_MOVE && m.promoted_piece != 0) {
+		score += 10;
+	}
+
+	// 5. promotion + check move advantage
+	if (m.captured_piece != 0) {
+		score += 15;
+	}
+
+	// 6. castling move advantage
+	if (m.type == CASTLE_MOVE) {
+		score += 10;
+	}
+
+	// 7. move that encourages knights and bishops to move to the center of the board
+	if (piece_type(m.piece) == KNIGHT || piece_type(m.piece) == BISHOP) {
+		if (m.dest.file == D || m.dest.file == E || m.dest.file == D || m.dest.file == F) {
+			if (m.dest.rank == 4 || m.dest.rank == 5 || m.dest.rank == 4 || m.dest.rank == 5) {
+				score += 5;
+			}
+		}
+	}
+
+	// (additional) centre pawn moves are encouraged (when all other moves are almost equal)
+	if (piece_type(m.piece) == PAWN) {
+		if (m.dest.file == D || m.dest.file == E) {
+			if (m.dest.rank == 4 || m.dest.rank == 5) {
+				score += 2;
+			}
+		}
+	}
+
+	return score;
 }
 
 void filter_legal_moves(board *b, short turn) {
@@ -1532,6 +1584,26 @@ void filter_legal_moves(board *b, short turn) {
 		}
 
 		if (!in_check(turn, b)) {
+
+			// Check if the move puts the opponent in check
+			if(turn == WHITE) {
+				if(b->white_lookup_table[0] & b->black->king) {
+					// If the move puts the opponent in check, it's a legal move
+					current_move.is_check = true;
+				}else{
+					current_move.is_check = false;
+				}
+			}else {
+				if(b->black_lookup_table[0] & b->white->king) {
+					// If the move puts the opponent in check, it's a legal move
+					current_move.is_check = true;
+				}else{
+					current_move.is_check = false;
+				}
+			}
+
+			current_move.score = get_score(current_move, b);
+
 			// If the move does not leave the player in check, it's legal
 			add_move(legal_moves, current_move);
 		}
