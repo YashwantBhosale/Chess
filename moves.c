@@ -1751,6 +1751,32 @@ unsigned int get_score(Move m, board *b) {
 	return score;
 }
 
+void filter_legal_moves_v2(board *b, short turn) {
+	/*
+		PROBLEM WITH ALREADY EXISTING FUNCTION:
+		(*) we unnecessarily recompute the attacks of irrelevant pieces
+		for ex. if a bishop moves from f1 to c4 why am i updating attacks of pawn on h2 as nothing
+		has changed for the pawn this overhead grows exponentially when we calculate millions and 
+		billions of position. although there are lot of considerations still, there is room for 
+		optimization.
+
+		RAW IDEAS ABOUT THE NEW FUNCTION:
+		(1) as per my raw intuition, when a piece moves from a source square to destination square
+		    that only affects the attacks of pieces lying in 8 directions of source square and 
+			destination square.
+		(2) although there are lot of edge cases and considerations like en passant, castling, 
+		    especially the knight moves but if we carefully take care of them we will be able to 
+			achieve satisfactory optimization
+		(3) (very raw) for knights we can precompute the probable attacks as its moves are static
+			it can save some time if not very large.
+		
+		PENDING:
+		(1) do we simulate all the moves after updating the list with this technique?
+		(2) move simulation is probably the most computationally demanding in our program so more 
+			we optimize it better it gets to reach more depths.
+	 */
+}
+
 void filter_legal_moves(board *b, short turn) {
 	MoveList *pseudo_legal_moves = turn == WHITE ? b->white_attacks : b->black_attacks;   // pseudo legal
 	MoveList *legal_moves = turn == WHITE ? b->white_legal_moves : b->black_legal_moves;  // legal
