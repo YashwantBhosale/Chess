@@ -82,7 +82,7 @@ int get_weight_from_piece_type(uint8_t piece_type) {
 bool static_in_check(short turn, board* board) {
 	uint64_t king_position = turn == WHITE ? board->white->king : board->black->king;
 	uint64_t opponent_attacks = turn == WHITE ? board->black_lookup_table[0] : board->white_lookup_table[0];
-	return (king_position & opponent_attacks);
+	return (king_position & opponent_attacks) != 0;
 }
 
 /* Calculates the evaluation of the Board */
@@ -109,7 +109,7 @@ double get_evaluation_of_board(board* board) {
 
 void display_evaluation(double eval) {
 	double scale = 16.0 / 39.0;
-	double eval_scaled = eval * scale;
+	double eval_scaled = (eval * scale);
 	wprintf(L"\n\n\t       [ ");
 	for (int i = 0; i < (int)(eval_scaled + 16); i++) wprintf(L"\u2588");
 	for (int i = (int)(eval_scaled + 16); i < 32; i++) wprintf(L"-");

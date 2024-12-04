@@ -1781,7 +1781,7 @@ void filter_legal_moves(board *b, short turn) {
 	MoveList *pseudo_legal_moves = turn == WHITE ? b->white_attacks : b->black_attacks;   // pseudo legal
 	MoveList *legal_moves = turn == WHITE ? b->white_legal_moves : b->black_legal_moves;  // legal
 
-	if (!pseudo_legal_moves || !pseudo_legal_moves->moves || pseudo_legal_moves->move_count == 0) {
+	if (!pseudo_legal_moves->move_count) {
 		wprintf(L"No pseudo-legal moves to filter for %s.\n", turn == WHITE ? "WHITE" : "BLACK");
 		return;
 	}
@@ -1790,10 +1790,7 @@ void filter_legal_moves(board *b, short turn) {
 	clear_move_list(legal_moves);
 
 	for (int i = 0; i < pseudo_legal_moves->move_count; i++) {
-		Move *current_move_ptr = pseudo_legal_moves->moves[i];
-		if (!current_move_ptr) continue;
-
-		Move current_move = *current_move_ptr;
+		Move current_move = pseudo_legal_moves->moves[i];
 
 		short status = make_move(current_move.src, current_move.dest, turn, b, true);
 

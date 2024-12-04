@@ -12,18 +12,18 @@
 #include "engine.h"
 #include "move_array.h"
 
-void swap(Move** a, Move** b) {
-	Move* temp = *a;
+void swap(Move* a, Move* b) {
+	Move temp = *a;
 	*a = *b;
 	*b = temp;
 }
 
 int partition(MoveList* list, int low, int high) {
-	Move* pivot = list->moves[high];
+	Move pivot = list->moves[high];
 	int i = low - 1;
 
 	for (int j = low; j <= high - 1; j++) {
-		if (list->moves[j]->score > pivot->score) {
+		if (list->moves[j].score > pivot.score) {
 			i++;
 			swap(&list->moves[i], &list->moves[j]);
 		}
@@ -79,7 +79,7 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 			clear_move_list(legal_moves);
 			filter_legal_moves(b, WHITE);
 
-			Move m = *(legal_moves->moves[i]);
+			Move m = legal_moves->moves[i];
 
 			square src = {
 			    .file = m.src.file,
@@ -91,7 +91,7 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 			short status = make_move(src, dest, maximizing_player, b, true);
 
 			if (status == INVALID_MOVE) {
-				wprintf(L"Invalid move from the engine:\n");
+				// wprintf(L"Invalid move from the engine:\n");
 				// wprintf(L"")
 				return (evaluated_move){INT_MIN, PLACEHOLDER_MOVE};
 			}
@@ -117,7 +117,7 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 			clear_move_list(legal_moves);
 			filter_legal_moves(b, BLACK);
 
-			Move m = *(legal_moves->moves[i]);
+			Move m = legal_moves->moves[i];
 
 			square src = {
 			    .file = m.src.file,

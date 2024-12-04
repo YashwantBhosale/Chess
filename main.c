@@ -108,7 +108,7 @@ void single_player(board *b) {
 
 	while (1) {
 		clrscr();
-		display_evaluation(evaluation);
+		// display_evaluation(evaluation);
 		print_board(b, BLACK);
 		filter_legal_moves(b, turn);
 		if (turn == WHITE && b->white_legal_moves->move_count == 0) {
