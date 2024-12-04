@@ -1470,6 +1470,29 @@ bool in_check(short color, board *b) {
 
 	return (king_position & opponent_attacks);
 }
+
+bool in_check_alt(short color, board *b) {
+	/* 
+	 * ideas for more efficient implementation 
+	   1. the inefficient thing we are doing above is we are recalculating attacks of every piece 
+	      of opponent again and again to check if player's king is in check
+	   2. while in true sense only pieces that matter are those from which the player's king is 
+	      reachable we should only update their attacks and not entire pieces
+	   3. so we will shoot up rays from the player's king in all 8 directions and find all the 
+	      opponent pieces which are in those rays and only update their attacks to check if it is
+		  a check to player's king
+		  (if it is a sliding piece that we are encountering then we don't need to update attacks 
+		   we can just straight up conclude that it's a check)
+		4. we need to specially handle case for knight by genrating knight attacks from king's 
+		   position and checking if any opponent knight is there at that position
+		5. also we need to specially take care of the discovered attacks, pins etc.
+
+		... more things to consider
+	 */
+	
+
+}
+
 void print_move(Move m) {
 	wprintf(L"(%c, %d) -> (%c, %d), piece : %d, captured piece : %d, promoted piece : %d, castle rights : %d, type : %d\n", m.src.file + 'A' - 1, m.src.rank, m.dest.file + 'A' - 1, m.dest.rank, m.piece, m.captured_piece, m.promoted_piece, m.castle_rights, m.type);
 }
