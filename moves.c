@@ -1023,7 +1023,7 @@ short make_move(square src, square dest, short turn, board *b, bool is_engine) {
 		adjust_type_board_for_make_move(m, b);
 		// update_attacks(b);
 	} else {
-		wprintf(L"Returned from make move because move is not valid.\n");
+		// wprintf(L"Returned from make move because move is not valid.\n");
 		return INVALID_MOVE;
 	}
 	if (!flag) {
@@ -1252,12 +1252,12 @@ short unmake_move(board *b) {
 					wprintf(L"Rook pointer is null move couldn't be undone\n");
 					// we should ideally restore king to its original position
 
-					/* 
-						*king_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
-						update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
-						update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
-						push(b->moves, last_move);
-					*/ 
+					/*
+					    *king_ptr = get_bitboard(last_move.src.file, last_move.src.rank);
+					    update_square_table(last_move.src.file, last_move.src.rank, last_move.piece, b);
+					    update_square_table(last_move.dest.file, last_move.dest.rank, EMPTY_SQUARE, b);
+					    push(b->moves, last_move);
+					*/
 					return false;
 				}
 
@@ -1457,7 +1457,6 @@ void update_attacks(board *b) {
 bool in_check(short color, board *b) {
 	uint64_t king_position = color == WHITE ? b->white->king : b->black->king;
 
-	
 	if (color == WHITE) {
 		b->black_attacks->move_count = 0;
 	} else {
@@ -1472,25 +1471,195 @@ bool in_check(short color, board *b) {
 }
 
 bool in_check_alt(short color, board *b) {
-	/* 
-	 * ideas for more efficient implementation 
-	   1. the inefficient thing we are doing above is we are recalculating attacks of every piece 
+	/*
+	 * ideas for more efficient implementation
+	   1. the inefficient thing we are doing above is we are recalculating attacks of every piece
 	      of opponent again and again to check if player's king is in check
-	   2. while in true sense only pieces that matter are those from which the player's king is 
+	   2. while in true sense only pieces that matter are those from which the player's king is
 	      reachable we should only update their attacks and not entire pieces
-	   3. so we will shoot up rays from the player's king in all 8 directions and find all the 
+	   3. so we will shoot up rays from the player's king in all 8 directions and find all the
 	      opponent pieces which are in those rays and only update their attacks to check if it is
-		  a check to player's king
-		  (if it is a sliding piece that we are encountering then we don't need to update attacks 
-		   we can just straight up conclude that it's a check)
-		4. we need to specially handle case for knight by genrating knight attacks from king's 
-		   position and checking if any opponent knight is there at that position
-		5. also we need to specially take care of the discovered attacks, pins etc.
+	      a check to player's king
+	      (if it is a sliding piece that we are encountering then we don't need to update attacks
+	       we can just straight up conclude that it's a check)
+	    4. we need to specially handle case for knight by genrating knight attacks from king's
+	       position and checking if any opponent knight is there at that position
+	    5. also we need to specially take care of the discovered attacks, pins etc.
 
-		... more things to consider
+	    ... more things to consider
 	 */
-	
 
+	uint64_t king_position = color == WHITE ? b->white->king : b->black->king;
+	int king_rank, king_file;
+	get_rank_and_file_from_bitboard(king_position, &king_file, &king_rank);
+
+	// check northward
+	for (int i = king_rank + 1; i <= 8; i++) {
+		uint8_t piece = b->square_table[king_file - 1][i - 1];
+		if (piece == EMPTY_SQUARE) {
+			continue;
+		}
+		if (piece_color(piece) == color) {
+			break;
+		}
+		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN) {
+			return true;
+		}
+		break;
+	}
+
+	// check southward
+	for (int i = king_rank - 1; i >= 1; i--) {
+		uint8_t piece = b->square_table[king_file - 1][i - 1];
+		if (piece == EMPTY_SQUARE) {
+			continue;
+		}
+		if (piece_color(piece) == color) {
+			break;
+		}
+		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN) {
+			return true;
+		}
+		break;
+	}
+
+	// check eastward
+	for (int i = king_file + 1; i <= H; i++) {
+		uint8_t piece = b->square_table[i - 1][king_rank - 1];
+		if (piece == EMPTY_SQUARE) {
+			continue;
+		}
+		if (piece_color(piece) == color) {
+			break;
+		}
+		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN) {
+			return true;
+		}
+		break;
+	}
+
+	// check westward
+	for (int i = king_file - 1; i >= A; i--) {
+		uint8_t piece = b->square_table[i - 1][king_rank - 1];
+		if (piece == EMPTY_SQUARE) {
+			continue;
+		}
+		if (piece_color(piece) == color) {
+			break;
+		}
+		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN) {
+			return true;
+		}
+		break;
+	}
+
+	// check north-eastward
+	for (int i = king_file + 1, j = king_rank + 1; i <= H && j <= 8; i++, j++) {
+		uint8_t piece = b->square_table[i - 1][j - 1];
+		if (piece == EMPTY_SQUARE) {
+			continue;
+		}
+		if (piece_color(piece) == color) {
+			break;
+		}
+
+		if (piece_type(piece) == PAWN) {
+			if (color == WHITE && j == king_rank + 1) {
+				return true;
+			}
+
+		}
+
+		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN) {
+			return true;
+		}
+		break;
+	}
+
+	// check south-eastward
+	for (int i = king_file + 1, j = king_rank - 1; i <= H && j >= 1; i++, j--) {
+		uint8_t piece = b->square_table[i - 1][j - 1];
+		if (piece == EMPTY_SQUARE) {
+			continue;
+		}
+		if (piece_color(piece) == color) {
+			break;
+		}
+
+		if (piece_type(piece) == PAWN) {
+			if (color == BLACK && j == king_rank - 1) {
+				return true;
+			}
+		}
+
+		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN) {
+			return true;
+		}
+		break;
+	}
+
+	// check south-westward
+	for (int i = king_file - 1, j = king_rank - 1; i >= A && j >= 1; i--, j--) {
+		uint8_t piece = b->square_table[i - 1][j - 1];
+		if (piece == EMPTY_SQUARE) {
+			continue;
+		}
+		if (piece_color(piece) == color) {
+			break;
+		}
+
+		if(piece_type(piece) == PAWN) {
+			if(color == BLACK && j == king_rank - 1) {
+				return true;
+			}
+		}
+
+		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN) {
+			return true;
+		}
+		break;
+	}
+
+	// check north-westward
+	for (int i = king_file - 1, j = king_rank + 1; i >= A && j <= 8; i--, j++) {
+		uint8_t piece = b->square_table[i - 1][j - 1];
+		if (piece == EMPTY_SQUARE) {
+			continue;
+		}
+		if (piece_color(piece) == color) {
+			break;
+		}
+		// check for pawn
+		if (piece_type(piece) == PAWN) {
+			if (color == WHITE && j == king_rank + 1) {
+				return true;
+			}
+		}
+
+		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN) {
+			return true;
+		}
+
+		break;
+	}
+
+	// check for knights
+	int knight_moves[8][2] = {{2, 1}, {2, -1}, {-2, 1}, {-2, -1}, {1, 2}, {1, -2}, {-1, 2}, {-1, -2}};
+	for (int i = 0; i < 8; i++) {
+		int new_file = king_file + knight_moves[i][0];
+		int new_rank = king_rank + knight_moves[i][1];
+		if (new_file >= A && new_file <= H && new_rank >= 1 && new_rank <= 8) {
+			uint8_t piece = b->square_table[new_file - 1][new_rank - 1];
+			if (piece == EMPTY_SQUARE) {
+				continue;
+			}
+			if (piece_color(piece) == !color && piece_type(piece) == KNIGHT) {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 void print_move(Move m) {
@@ -1499,34 +1668,34 @@ void print_move(Move m) {
 
 unsigned int get_score(Move m, board *b) {
 	/*
-		Ideas:
-		1. In general, a capture move has greater probability of being great move
-		2. A move that puts the opponent in check is a good move
-		3. A move that puts the opponent in checkmate is the best move (PENDING)
-		4. A move that puts the opponent in stalemate is the worst move (PENDING)
-		5. promotion moves are generally good moves
+	    Ideas:
+	    1. In general, a capture move has greater probability of being great move
+	    2. A move that puts the opponent in check is a good move
+	    3. A move that puts the opponent in checkmate is the best move (PENDING)
+	    4. A move that puts the opponent in stalemate is the worst move (PENDING)
+	    5. promotion moves are generally good moves
 
-		more polished ideas:
-		1. A move that involves capture of high value piece with a low value piece is a good move
-		   here, we will assign extra points to the move
-		2. promotion + capture is a great move
-		3. promotion + check is a great move
-		4. castling is generally a good move (especially if the 7th or 2nd rank pawns are still there)
-		5. a move that reduces opponent's number of legal moves is a good move (here we can just 
-		   check the pseudo legal moves as filtering opponent's legal moves is again compuationally
-		   expensive).
-		6. a move that increases the number of legal moves for the player is a good move (Not sure
-		   about this one)
+	    more polished ideas:
+	    1. A move that involves capture of high value piece with a low value piece is a good move
+	       here, we will assign extra points to the move
+	    2. promotion + capture is a great move
+	    3. promotion + check is a great move
+	    4. castling is generally a good move (especially if the 7th or 2nd rank pawns are still there)
+	    5. a move that reduces opponent's number of legal moves is a good move (here we can just
+	       check the pseudo legal moves as filtering opponent's legal moves is again compuationally
+	       expensive).
+	    6. a move that increases the number of legal moves for the player is a good move (Not sure
+	       about this one)
 
-		more specific to piece ideas:
-		1. A move that encourages knights and bishops to move to the center of the board is a good move
-		   (we will assign very little extra points to the move so that this is only done when all other
-			moves are almost equal)
-			NOTE: here if both the pieces have equal probability of moving to the center, we will choose
-			knight, as it seems more useless at the corner of the board
-	
-		there is no computationally cheap way to determine if a move is a checkmate or stalemate
-		at the current design so we will not consider them for now
+	    more specific to piece ideas:
+	    1. A move that encourages knights and bishops to move to the center of the board is a good move
+	       (we will assign very little extra points to the move so that this is only done when all other
+	        moves are almost equal)
+	        NOTE: here if both the pieces have equal probability of moving to the center, we will choose
+	        knight, as it seems more useless at the corner of the board
+
+	    there is no computationally cheap way to determine if a move is a checkmate or stalemate
+	    at the current design so we will not consider them for now
 	*/
 
 	unsigned int score = 0;
@@ -1534,7 +1703,7 @@ unsigned int get_score(Move m, board *b) {
 	// 1. capture move advantage
 	if (m.type == CAPTURE_MOVE) {
 		score += 10;
-	}	
+	}
 
 	// 2. check move advantage
 	if (m.is_check) {
@@ -1606,21 +1775,20 @@ void filter_legal_moves(board *b, short turn) {
 			continue;
 		}
 
-		if (!in_check(turn, b)) {
-
+		if (!in_check_alt(turn, b)) {
 			// Check if the move puts the opponent in check
-			if(turn == WHITE) {
-				if(b->white_lookup_table[0] & b->black->king) {
+			if (turn == WHITE) {
+				if (b->white_lookup_table[0] & b->black->king) {
 					// If the move puts the opponent in check, it's a legal move
 					current_move.is_check = true;
-				}else{
+				} else {
 					current_move.is_check = false;
 				}
-			}else {
-				if(b->black_lookup_table[0] & b->white->king) {
+			} else {
+				if (b->black_lookup_table[0] & b->white->king) {
 					// If the move puts the opponent in check, it's a legal move
 					current_move.is_check = true;
-				}else{
+				} else {
 					current_move.is_check = false;
 				}
 			}
@@ -1629,11 +1797,22 @@ void filter_legal_moves(board *b, short turn) {
 
 			// If the move does not leave the player in check, it's legal
 			add_move(legal_moves, current_move);
+		}else {
+			// remove from lookup table
+			if (turn == WHITE) {
+				uint64_t dest_bb = get_bitboard(current_move.dest.file, current_move.dest.rank);
+				b->white_lookup_table[lookup_index(current_move.piece)] &= ~dest_bb;
+				b->white_lookup_table[0] &= ~dest_bb;
+
+			} else {
+				uint64_t dest_bb = get_bitboard(current_move.dest.file, current_move.dest.rank);
+				b->black_lookup_table[lookup_index(current_move.piece)] &= ~dest_bb;
+				b->black_lookup_table[0] &= ~dest_bb;
+			}
 		}
 
 		unmake_move(b);  // Undo the move to restore board state
 	}
-
 }
 
 /*
