@@ -16,4 +16,5 @@ void adjust_type_board_for_unmake_move(Move move, board *b);
 uint8_t piece_type_from_promotion_flag(uint8_t flag);
 uint8_t get_id_of_promoted_piece(uint8_t piece_type, short color, short piece_number);
 bool in_check(short color, board *b);
+bool in_check_alt(short color, board *b);
 void filter_legal_moves_alt(board *b, short turn);

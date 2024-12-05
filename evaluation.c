@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 #include <limits.h>
+#include <float.h>
 
 #include "chessboard.h"
 #include "move_types.h"
@@ -10,6 +11,17 @@
 #include "evaluation.h"
 
 #define FILEMASK_A 0b0000000100000001000000010000000100000001000000010000000100000001ULL
+
+const unsigned knight_encouragement_matrix[8][8] = {
+	{0, 0, 0, 0, 0, 0, 0, 0},
+	{0, 1, 1, 1, 1, 1, 1, 0},
+	{2, 3, 4, 5, 5, 4, 3, 2},
+	{3, 4, 5, 7, 7, 5, 4, 3},
+	{3, 4, 5, 7, 7, 5, 4, 3},
+	{2, 3, 4, 5, 5, 4, 3, 2},
+	{0, 1, 1, 1, 1, 1, 1, 0},
+	{0, 0, 0, 0, 0, 0, 0, 0}
+};
 
 void print_binay_of_uint64(uint64_t num) {
 	for (int i = 63; i >= 0; i--) {
@@ -82,7 +94,7 @@ int get_weight_from_piece_type(uint8_t piece_type) {
 bool static_in_check(short turn, board* board) {
 	uint64_t king_position = turn == WHITE ? board->white->king : board->black->king;
 	uint64_t opponent_attacks = turn == WHITE ? board->black_lookup_table[0] : board->white_lookup_table[0];
-	return (king_position & opponent_attacks);
+	return (king_position & opponent_attacks) != 0;
 }
 
 /* Calculates the evaluation of the Board */
@@ -104,15 +116,34 @@ double get_evaluation_of_board(board* board) {
 
 	eval -= 0.5 * (num_doubled_blocked_pawns(board, WHITE) - num_doubled_blocked_pawns(board, BLACK));
 	eval -= 0.5 * (num_isolated_pawns(board, WHITE) - num_isolated_pawns(board, BLACK));
+	
+	
+
 	return eval;
 }
 
+
 void display_evaluation(double eval) {
-	double scale = 16.0 / 39.0;
-	double eval_scaled = eval * scale;
-	wprintf(L"\n\n\t       [ ");
-	for (int i = 0; i < (int)(eval_scaled + 16); i++) wprintf(L"\u2588");
-	for (int i = (int)(eval_scaled + 16); i < 32; i++) wprintf(L"-");
-	wprintf(L" ]\t%lf\n\n", eval_scaled / 4.0);
-	return;
+    // Define bounds for eval
+    const double EVAL_MAX = 100.0;  // Adjust as needed for your application
+    const double EVAL_MIN = -100.0;
+
+    // Clamp eval to the defined range
+    if (eval > EVAL_MAX) {
+        eval = EVAL_MAX;
+    } else if (eval < EVAL_MIN) {
+        eval = EVAL_MIN;
+    }
+
+    // Scaling logic
+    double scale = 16.0 / 39.0;
+    double eval_scaled = (eval * scale);
+
+    // Display scaled evaluation as a bar
+    wprintf(L"\n\n\t       [ ");
+    for (int i = 0; i < (int)(eval_scaled + 16); i++) wprintf(L"\u2588");
+    for (int i = (int)(eval_scaled + 16); i < 32; i++) wprintf(L"-");
+    wprintf(L" ]\t%lf\n\n", eval_scaled / 4.0);
+
+    return;
 }

@@ -4,8 +4,9 @@
 #include <string.h>
 #include <wchar.h>
 #include <limits.h>
-
 #include <locale.h>
+#include <time.h>
+
 #include "chessboard.h"
 #include "move_types.h"
 #include "moves.h"
@@ -60,7 +61,7 @@ void two_player(board *b) {
 	wprintf(L"rooks = %d\n", b->white->count.rooks);
 	update_attacks(b);
 
-	while(1) {
+	while (1) {
 		clrscr();
 
 		print_board(b, turn);
@@ -76,11 +77,11 @@ void two_player(board *b) {
 		}
 
 		/*
-			wprintf(L"White Attacks: \n");
-			print_movelist(b->white_attacks);
-			wprintf(L"\n");
-			wprintf(L"Black Attacks: \n");
-			print_movelist(b->black_attacks);
+		    wprintf(L"White Attacks: \n");
+		    print_movelist(b->white_attacks);
+		    wprintf(L"\n");
+		    wprintf(L"Black Attacks: \n");
+		    print_movelist(b->black_attacks);
 		*/
 
 		wprintf(L"%s's Turn: ", turn == WHITE ? "White" : "Black");
@@ -104,10 +105,20 @@ void single_player(board *b) {
 	load_fen(b, STARTING_FEN);
 	short turn = WHITE;
 	update_attacks(b);
+	double evaluation = 0;
+
+	double time_taken = 0;
 
 	while (1) {
 		clrscr();
-    	print_board(b, BLACK);
+		display_evaluation(evaluation);
+
+		if (turn == BLACK && b->moves->top) {
+			wprintf(L"Last move was: %c%d->%c%d\n", b->moves->top->move.src.file + 'a' - 1, b->moves->top->move.src.rank, b->moves->top->move.dest.file + 'a' - 1, b->moves->top->move.dest.rank);
+			wprintf(L"Time taken for search: %.2lfms\n", time_taken);
+		}
+
+		print_board(b, BLACK);
 		filter_legal_moves(b, turn);
 		if (turn == WHITE && b->white_legal_moves->move_count == 0) {
 			wprintf(L"Black wins\n");
@@ -131,14 +142,19 @@ void single_player(board *b) {
 			}
 		} else {
 			wprintf(L"Thinking...\n");
-            uint64_t lookup_table_backup[97];
-            memcpy(lookup_table_backup, turn == WHITE ? b->white_lookup_table : b->black_lookup_table, sizeof(lookup_table_backup));
-			evaluated_move eval = minimax(b, 3, turn, INT_MIN, INT_MAX);
+			uint64_t lookup_table_backup[97];
+			memcpy(lookup_table_backup, turn == WHITE ? b->white_lookup_table : b->black_lookup_table, sizeof(lookup_table_backup));
 
-            memcpy(turn == WHITE ? b->white_lookup_table : b->black_lookup_table, lookup_table_backup, sizeof(lookup_table_backup));
+			clock_t start = clock();
+			evaluated_move eval = minimax(b, 6, turn, INT_MIN, INT_MAX);
+			clock_t end = clock();
+
+			time_taken = ((double)(end - start) * 1000.0) / CLOCKS_PER_SEC;
+			evaluation = eval.evaluation;
+
+			memcpy(turn == WHITE ? b->white_lookup_table : b->black_lookup_table, lookup_table_backup, sizeof(lookup_table_backup));
 			wprintf(L"Best move: ");
 			wprintf(L"%c%d -> %c%d\n", eval.best_move.src.file + 'a' - 1, eval.best_move.src.rank, eval.best_move.dest.file + 'a' - 1, eval.best_move.dest.rank);
-
 
 			make_move(eval.best_move.src, eval.best_move.dest, turn, b, true);
 		}
@@ -152,6 +168,13 @@ void single_player(board *b) {
 int main() {
 	setlocale(LC_ALL, "");
 	board b;
+	// load_fen(&b, "8/2p5/3p4/KP5r/1R3pPk/8/4P3/8 b - - 0 1");
+	// short turn = BLACK;
+
+	// update_attacks(&b);
+	// filter_legal_moves(&b, turn);
+	// print_movelist(turn == WHITE ? b.white_legal_moves : b.black_legal_moves);
+
 	// two_player(&b);
 	single_player(&b);
 	return 0;

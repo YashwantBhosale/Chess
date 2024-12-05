@@ -12,6 +12,36 @@
 #include "engine.h"
 #include "move_array.h"
 
+void swap(Move* a, Move* b) {
+	Move temp = *a;
+	*a = *b;
+	*b = temp;
+}
+
+int partition(MoveList* list, int low, int high) {
+	Move pivot = list->moves[high];
+	int i = low - 1;
+
+	for (int j = low; j <= high - 1; j++) {
+		if (list->moves[j].score > pivot.score) {
+			i++;
+			swap(&list->moves[i], &list->moves[j]);
+		}
+	}
+
+	swap(&list->moves[i + 1], &list->moves[high]);
+	return i + 1;
+}
+
+void quick_sort(MoveList* list, int low, int high) {
+	if (low < high) {
+		int pi = partition(list, low, high);
+
+		quick_sort(list, low, pi - 1);
+		quick_sort(list, pi + 1, high);
+	}
+}
+
 evaluated_move minimax(board* b, int depth, short maximizing_player, double alpha, double beta) {
 	evaluated_move _move;
 	if (depth == 0) {
@@ -36,30 +66,40 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 
 	int num_legal_moves = legal_moves->move_count;
 
+	// Sort the legal moves based on their scores
+	quick_sort(legal_moves, 0, num_legal_moves - 1);
+
+	Move legal_moves_bk[num_legal_moves];
+	memcpy(legal_moves_bk, legal_moves->moves, sizeof(Move) * num_legal_moves);
+
+	uint64_t lookup_table_bk[97], *lookup_table_ptr;
+
+	if (maximizing_player == WHITE) {
+		lookup_table_ptr = b->white_lookup_table;
+		memcpy(lookup_table_bk, b->white_lookup_table, sizeof(uint64_t) * 97);
+	} else {
+		lookup_table_ptr = b->black_lookup_table;
+		memcpy(lookup_table_bk, b->black_lookup_table, sizeof(uint64_t) * 97);
+	}
+
 	if (maximizing_player == WHITE) {
 		double max_eval = INT_MIN;
 		for (int i = 0; i < num_legal_moves; i++) {
-			clear_move_list(pseudo_legal_moves);
-			update_attacks_for_color(b, WHITE);
-			clear_move_list(legal_moves);
-			filter_legal_moves(b, WHITE);
+			memcpy(legal_moves->moves, legal_moves_bk, sizeof(Move) * num_legal_moves);
+			memcpy(lookup_table_ptr, lookup_table_bk, sizeof(uint64_t) * 97);
 
-			Move m = *(legal_moves->moves[i]);
+			Move m = legal_moves->moves[i];
 
 			square src = {
 			    .file = m.src.file,
-			    .rank = m.src.rank
-			};
+			    .rank = m.src.rank};
 			square dest = {
 			    .file = m.dest.file,
-			    .rank = m.dest.rank
-			};
+			    .rank = m.dest.rank};
 
 			short status = make_move(src, dest, maximizing_player, b, true);
 
 			if (status == INVALID_MOVE) {
-				wprintf(L"Invalid move from the engine:\n");
-				// wprintf(L"")
 				return (evaluated_move){INT_MIN, PLACEHOLDER_MOVE};
 			}
 			evaluated_move eval = minimax(b, depth - 1, BLACK, alpha, beta);
@@ -79,21 +119,17 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 	} else {
 		double min_eval = INT_MAX;
 		for (int i = 0; i < num_legal_moves; i++) {
-			clear_move_list(pseudo_legal_moves);
-			update_attacks_for_color(b, BLACK);
-			clear_move_list(legal_moves);
-			filter_legal_moves(b, BLACK);
+			memcpy(legal_moves->moves, legal_moves_bk, sizeof(Move) * num_legal_moves);
+			memcpy(lookup_table_ptr, lookup_table_bk, sizeof(uint64_t) * 97);	
 
-			Move m = *(legal_moves->moves[i]);
+			Move m = legal_moves->moves[i];
 
 			square src = {
 			    .file = m.src.file,
-			    .rank = m.src.rank
-			};
+			    .rank = m.src.rank};
 			square dest = {
 			    .file = m.dest.file,
-			    .rank = m.dest.rank
-			};
+			    .rank = m.dest.rank};
 
 			short status = make_move(src, dest, maximizing_player, b, true);
 			if (status == INVALID_MOVE) {
