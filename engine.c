@@ -11,6 +11,7 @@
 #include "evaluation.h"
 #include "engine.h"
 #include "move_array.h"
+#include "transposition.h"
 
 void swap(Move* a, Move* b) {
 	Move temp = *a;
@@ -49,6 +50,17 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 		_move.best_move = PLACEHOLDER_MOVE;
 		return _move;
 	}
+
+	// check the transposition table
+	uint64_t key = get_zobrist_key(b, &transposition_table);
+	Entry* entry = get_entry(&transposition_table, key);
+
+	if (entry && entry->key && entry->depth >= depth) {
+		_move.evaluation = entry->evaluation;
+		_move.best_move = entry->best_move;
+		return _move;
+	}
+
 
 	// Step 1: Select the correct move list based on the turn
 	MoveList* pseudo_legal_moves = maximizing_player == WHITE ? b->white_attacks : b->black_attacks;
@@ -103,6 +115,19 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 				return (evaluated_move){INT_MIN, PLACEHOLDER_MOVE};
 			}
 			evaluated_move eval = minimax(b, depth - 1, BLACK, alpha, beta);
+			
+			// insert entry in transposition table
+			Entry e = {
+				.key = key,
+				.evaluation = eval.evaluation,
+				.depth = depth,
+				.best_move = m,
+				.alpha = alpha,
+				.beta = beta
+			};
+			insert_entry(&transposition_table, e);
+
+
 			unmake_move(b);
 			if (eval.evaluation > max_eval) {
 				max_eval = eval.evaluation;
@@ -110,6 +135,7 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 			}
 
 			alpha = alpha > eval.evaluation ? alpha : eval.evaluation;
+
 			if (beta <= alpha) {
 				break;
 			}
@@ -136,6 +162,16 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 				return (evaluated_move){INT_MAX, PLACEHOLDER_MOVE};
 			}
 			evaluated_move eval = minimax(b, depth - 1, WHITE, alpha, beta);
+			Entry e = {
+				.key = key,
+				.evaluation = eval.evaluation,
+				.depth = depth,
+				.best_move = m,
+				.alpha = alpha,
+				.beta = beta
+			};
+			insert_entry(&transposition_table, e);
+
 			unmake_move(b);
 			if (eval.evaluation < min_eval) {
 				min_eval = eval.evaluation;

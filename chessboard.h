@@ -1,6 +1,8 @@
 #ifndef CHESSBOARD_H
 #define CHESSBOARD_H
 #include <stdint.h>
+
+
 // #include "move_list.h"
 /*
 COLORS:
@@ -188,6 +190,12 @@ typedef struct pieces {
     ... More to be added as we progress. (like castling rights, en passant square etc.)
 */
 
+// structure for a square
+typedef struct square {
+	uint8_t rank;
+	uint8_t file;
+} square;
+
 typedef struct {
 	pieces *white, *black;
 	uint8_t square_table[8][8];
@@ -217,14 +225,8 @@ typedef struct {
     */
     uint64_t white_lookup_table[97];
     uint64_t black_lookup_table[97];
-    // ZobristTable transposition_table;
 } board;
 
-// structure for a square
-typedef struct square {
-	uint8_t rank;
-	uint8_t file;
-} square;
 
 // functions for chessboard
 void init_board(board *b);

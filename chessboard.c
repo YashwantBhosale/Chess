@@ -8,6 +8,7 @@
 #include "moves.h"
 #include "move_stack.h"
 #include "move_array.h"
+#include "transposition.h"
 
 // Utility functions
 // piece color
@@ -265,6 +266,7 @@ void init_board(board *b) {
 	// Clear captured pieces arrays
 	memset(b->captured_pieces[0], 0, sizeof(b->captured_pieces[0]));
 	memset(b->captured_pieces[1], 0, sizeof(b->captured_pieces[1]));
+
 }
 // function to initialize the pieces: allocate memory
 void init_pieces(pieces *type) {

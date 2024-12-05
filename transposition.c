@@ -1,3 +1,4 @@
+#include "move_types.h"
 #include "transposition.h"
 
 unsigned long long random_64() {
@@ -47,6 +48,8 @@ void init_zobrist(ZobristTable* z) {
     for (int i = 0; i < 8; i++) {
         z->en_passant[i] = random_64();
     }
+
+    memset(z->table, 0, sizeof(z->table));
 }
 
 void insert_entry(ZobristTable* z, Entry e) {

@@ -14,10 +14,13 @@
 #include "move_array.h"
 #include "engine.h"
 #include "evaluation.h"
+#include "transposition.h"	
 
 #define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 #define TEST_FEN "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1"
 // #define STARTING_FEN "r1bqkb1r/ppp1ppPp/2n2n2/3p4/5p2/8/PPPPP2P/RNBQKBNR w KQkq - 0 6"
+
+ZobristTable transposition_table;
 
 square read_square() {
 	char file;
@@ -103,6 +106,8 @@ void single_player(board *b) {
 	if (!b) return;
 
 	load_fen(b, STARTING_FEN);
+	init_zobrist(&transposition_table);
+
 	short turn = WHITE;
 	update_attacks(b);
 	double evaluation = 0;

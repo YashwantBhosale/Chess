@@ -1,6 +1,5 @@
 #ifndef TRANSPOSITION_H
 #define TRANSPOSITION_H
-// transposition table
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -8,9 +7,8 @@
 #include <wchar.h>
 #include <locale.h>
 #include <time.h>
-#include "move_types.h"
-#include "chessboard.h"
-
+// #include "chessboard.h"
+// #include "move_types.h"
 typedef struct {
     unsigned long long key;
     unsigned depth;
@@ -30,7 +28,7 @@ typedef struct {
     1. 12 pieces will have unique keys for each square.
 */
 
-#define TABLE_SIZE 1000000
+#define TABLE_SIZE 10000000
 typedef struct zobrist {
     unsigned long long keys[12][64];
     unsigned long long white_to_move;
@@ -39,8 +37,11 @@ typedef struct zobrist {
     Entry table[TABLE_SIZE];
 } ZobristTable;
 
+extern ZobristTable transposition_table;
 
 unsigned long long random_64();
 void init_zobrist(ZobristTable* z);
 void insert_entry(ZobristTable* z, Entry e);
+unsigned long long get_zobrist_key(board* b, ZobristTable* z);
+Entry* get_entry(ZobristTable* z, unsigned long long key);
 #endif
