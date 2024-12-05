@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 #include <limits.h>
+#include <float.h>
 
 #include "chessboard.h"
 #include "move_types.h"
@@ -107,12 +108,28 @@ double get_evaluation_of_board(board* board) {
 	return eval;
 }
 
+
 void display_evaluation(double eval) {
-	double scale = 16.0 / 39.0;
-	double eval_scaled = (eval * scale);
-	wprintf(L"\n\n\t       [ ");
-	for (int i = 0; i < (int)(eval_scaled + 16); i++) wprintf(L"\u2588");
-	for (int i = (int)(eval_scaled + 16); i < 32; i++) wprintf(L"-");
-	wprintf(L" ]\t%lf\n\n", eval_scaled / 4.0);
-	return;
+    // Define bounds for eval
+    const double EVAL_MAX = 100.0;  // Adjust as needed for your application
+    const double EVAL_MIN = -100.0;
+
+    // Clamp eval to the defined range
+    if (eval > EVAL_MAX) {
+        eval = EVAL_MAX;
+    } else if (eval < EVAL_MIN) {
+        eval = EVAL_MIN;
+    }
+
+    // Scaling logic
+    double scale = 16.0 / 39.0;
+    double eval_scaled = (eval * scale);
+
+    // Display scaled evaluation as a bar
+    wprintf(L"\n\n\t       [ ");
+    for (int i = 0; i < (int)(eval_scaled + 16); i++) wprintf(L"\u2588");
+    for (int i = (int)(eval_scaled + 16); i < 32; i++) wprintf(L"-");
+    wprintf(L" ]\t%lf\n\n", eval_scaled / 4.0);
+
+    return;
 }
