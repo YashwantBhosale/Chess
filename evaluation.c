@@ -12,6 +12,17 @@
 
 #define FILEMASK_A 0b0000000100000001000000010000000100000001000000010000000100000001ULL
 
+const unsigned knight_encouragement_matrix[8][8] = {
+	{0, 0, 0, 0, 0, 0, 0, 0},
+	{0, 1, 1, 1, 1, 1, 1, 0},
+	{2, 3, 4, 5, 5, 4, 3, 2},
+	{3, 4, 5, 7, 7, 5, 4, 3},
+	{3, 4, 5, 7, 7, 5, 4, 3},
+	{2, 3, 4, 5, 5, 4, 3, 2},
+	{0, 1, 1, 1, 1, 1, 1, 0},
+	{0, 0, 0, 0, 0, 0, 0, 0}
+};
+
 void print_binay_of_uint64(uint64_t num) {
 	for (int i = 63; i >= 0; i--) {
 		wprintf(L"%d", (num & (1ULL << i)) ? 1 : 0);
@@ -105,6 +116,9 @@ double get_evaluation_of_board(board* board) {
 
 	eval -= 0.5 * (num_doubled_blocked_pawns(board, WHITE) - num_doubled_blocked_pawns(board, BLACK));
 	eval -= 0.5 * (num_isolated_pawns(board, WHITE) - num_isolated_pawns(board, BLACK));
+	
+	
+
 	return eval;
 }
 

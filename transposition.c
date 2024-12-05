@@ -86,8 +86,3 @@ unsigned long long get_zobrist_key(board* b, ZobristTable* z) {
 }
 
 
-// int main() {
-//     srand(time(NULL));
-//     test_random_64();
-//     return 0;
-// }

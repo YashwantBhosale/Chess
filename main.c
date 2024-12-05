@@ -4,8 +4,9 @@
 #include <string.h>
 #include <wchar.h>
 #include <limits.h>
-
 #include <locale.h>
+#include <time.h>
+
 #include "chessboard.h"
 #include "move_types.h"
 #include "moves.h"
@@ -106,9 +107,17 @@ void single_player(board *b) {
 	update_attacks(b);
 	double evaluation = 0;
 
+	double time_taken = 0;
+
 	while (1) {
 		clrscr();
 		display_evaluation(evaluation);
+
+		if (turn == BLACK && b->moves->top) {
+			wprintf(L"Last move was: %c%d->%c%d\n", b->moves->top->move.src.file + 'a' - 1, b->moves->top->move.src.rank, b->moves->top->move.dest.file + 'a' - 1, b->moves->top->move.dest.rank);
+			wprintf(L"Time taken for search: %.2lfms\n", time_taken);
+		}
+
 		print_board(b, BLACK);
 		filter_legal_moves(b, turn);
 		if (turn == WHITE && b->white_legal_moves->move_count == 0) {
@@ -136,7 +145,11 @@ void single_player(board *b) {
 			uint64_t lookup_table_backup[97];
 			memcpy(lookup_table_backup, turn == WHITE ? b->white_lookup_table : b->black_lookup_table, sizeof(lookup_table_backup));
 
-			evaluated_move eval = minimax(b, 5, turn, INT_MIN, INT_MAX);
+			clock_t start = clock();
+			evaluated_move eval = minimax(b, 6, turn, INT_MIN, INT_MAX);
+			clock_t end = clock();
+
+			time_taken = ((double)(end - start) * 1000.0) / CLOCKS_PER_SEC;
 			evaluation = eval.evaluation;
 
 			memcpy(turn == WHITE ? b->white_lookup_table : b->black_lookup_table, lookup_table_backup, sizeof(lookup_table_backup));
