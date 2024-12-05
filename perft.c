@@ -24,7 +24,7 @@ void print_squares_from_bb(uint64_t bb) {
 }
 #define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 #define TURN WHITE
-#define MAX_DEPTH 6
+#define MAX_DEPTH 5
 
 
 
@@ -64,11 +64,11 @@ unsigned long long perfit(int depth, short turn, board* b) {
 		// wprintf(L"3\n");
 		filter_legal_moves(b, turn);
 		// wprintf(L"4\n");
-		if (legal_moves->moves[i] == NULL) {
+		if (!legal_moves->moves[i].piece) {
 			// wprintf(L"legal_moves[%d] is NULL\n", i);
 			continue;
 		}
-		Move m = *(legal_moves->moves[i]);
+		Move m = legal_moves->moves[i];
 		// wprintf(L"move %d\n", i);
 
 		// Make the move

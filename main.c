@@ -136,7 +136,7 @@ void single_player(board *b) {
 			uint64_t lookup_table_backup[97];
 			memcpy(lookup_table_backup, turn == WHITE ? b->white_lookup_table : b->black_lookup_table, sizeof(lookup_table_backup));
 
-			evaluated_move eval = minimax(b, 4, turn, INT_MIN, INT_MAX);
+			evaluated_move eval = minimax(b, 5, turn, INT_MIN, INT_MAX);
 			evaluation = eval.evaluation;
 
 			memcpy(turn == WHITE ? b->white_lookup_table : b->black_lookup_table, lookup_table_backup, sizeof(lookup_table_backup));
