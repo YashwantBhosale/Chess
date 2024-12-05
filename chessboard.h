@@ -2,7 +2,6 @@
 #define CHESSBOARD_H
 #include <stdint.h>
 // #include "move_list.h"
-
 /*
 COLORS:
 In general, for all functions white is enumerated as 0 and black is enumerated
@@ -218,6 +217,7 @@ typedef struct {
     */
     uint64_t white_lookup_table[97];
     uint64_t black_lookup_table[97];
+    // ZobristTable transposition_table;
 } board;
 
 // structure for a square
