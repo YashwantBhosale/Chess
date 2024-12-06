@@ -222,16 +222,16 @@ void add_move_to_list(uint64_t piece_position, uint64_t move, uint8_t type, boar
 	uint8_t promoted_piece = 0;
 	uint64_t en_passant_square = 0;
 
-	if (captured_piece != EMPTY_SQUARE) {
+	if (((type & PROMOTION_MOVE_MASK) == WHITE_PROMOTION_MOVE) || ((type & PROMOTION_MOVE_MASK) == BLACK_PROMOTION_MOVE)) {
+		uint8_t piece_type = piece_type_from_promotion_flag(type);
+		uint8_t _piece_number = *get_pointer_to_piece_counter(b, piece_type);
+		promoted_piece = get_id_of_promoted_piece(piece_type, color, _piece_number + 1);
+	} else if (captured_piece != EMPTY_SQUARE) {
 		type = CAPTURE_MOVE;
 	} else if (type == EN_PASSANT_MOVE) {
 		captured_piece = b->square_table[dest.file - 1][src.rank - 1];
 	} else if ((piece_type(piece) == PAWN) && abs(src.rank - dest.rank) == 2) {
 		en_passant_square = get_bitboard(src.file, color == WHITE ? 3 : 6);
-	} else if (((type & PROMOTION_MOVE_MASK) == WHITE_PROMOTION_MOVE) || ((type & PROMOTION_MOVE_MASK) == BLACK_PROMOTION_MOVE)) {
-		uint8_t piece_type = piece_type_from_promotion_flag(type);
-		uint8_t _piece_number = *get_pointer_to_piece_counter(b, piece_type);
-		promoted_piece = get_id_of_promoted_piece(piece_type, color, _piece_number + 1);
 	}
 
 	Move m = {
@@ -279,12 +279,14 @@ uint64_t generate_pawn_attacks(uint8_t pawn_id, uint64_t pawn_position, board *b
 			}
 
 			move = validate_capture(opponent_board, move_north_east(pawn_position));
+			b->white_lookup_table[0] |= move_north_east(pawn_position);  // add to only attacks
 			if (move & ~rankmask(8)) {
 				add_move_to_list(pawn_position, move, CAPTURE_MOVE, b);
 				attacks |= move;
 			}
 
 			move = validate_capture(opponent_board, move_north_west(pawn_position));
+			b->white_lookup_table[0] |= move_north_west(pawn_position);  // add to only attacks
 			if (move & ~rankmask(8)) {
 				add_move_to_list(pawn_position, move, CAPTURE_MOVE, b);
 				attacks |= move;
@@ -346,12 +348,14 @@ uint64_t generate_pawn_attacks(uint8_t pawn_id, uint64_t pawn_position, board *b
 			}
 
 			move = validate_capture(opponent_board, move_south_east(pawn_position));
+			b->black_lookup_table[0] |= move_south_east(pawn_position);
 			if (move & ~rankmask(1)) {
 				add_move_to_list(pawn_position, move, CAPTURE_MOVE, b);
 				attacks |= move;
 			}
 
 			move = validate_capture(opponent_board, move_south_west(pawn_position));
+			b->black_lookup_table[0] |= move_south_west(pawn_position);
 			if (move & ~rankmask(1)) {
 				add_move_to_list(pawn_position, move, CAPTURE_MOVE, b);
 				attacks |= move;
@@ -590,6 +594,8 @@ uint64_t validate_castle(uint64_t king_position, short color, board *b) {
 	player_board = color == WHITE ? b->white_board : b->black_board;
 	opponent_board = color == WHITE ? b->black_board : b->white_board;
 
+	king_side_castle = 0ULL;
+	queen_side_castle = 0ULL;
 	move = 0ULL;
 
 	uint64_t opponent_attacks = color == WHITE ? b->black_lookup_table[0] : b->white_lookup_table[0];
@@ -598,8 +604,19 @@ uint64_t validate_castle(uint64_t king_position, short color, board *b) {
 		return 0ULL;
 	}
 
+	if(color == WHITE) {
+		if((king_position & get_bitboard(E, 1))== 0) {
+			return 0ULL;
+		}
+	}else {
+		if((king_position & get_bitboard(E, 8))== 0) {
+			return 0ULL;
+		}
+	}
+
 	// king side castle
-	if (b->castle_rights & (color == WHITE ? WHITE_KING_SIDE_CASTLE_RIGHTS : BLACK_KING_SIDE_CASTLE_RIGHTS)) {
+	uint64_t rights = (color == WHITE ? WHITE_KING_SIDE_CASTLE_RIGHTS : BLACK_KING_SIDE_CASTLE_RIGHTS);
+	if ((b->castle_rights & rights) == rights) {
 		move = king_position;
 		for (int i = 0; i < 2; i++) {
 			move = validate_move(player_board | opponent_board, move_east(move));
@@ -616,20 +633,22 @@ uint64_t validate_castle(uint64_t king_position, short color, board *b) {
 	}
 
 	// queen side castle
-	if (b->castle_rights & (color == WHITE ? WHITE_QUEEN_SIDE_CASTLE_RIGHTS : BLACK_QUEEN_SIDE_CASTLE_RIGHTS)) {
+	rights = (color == WHITE ? WHITE_QUEEN_SIDE_CASTLE_RIGHTS : BLACK_QUEEN_SIDE_CASTLE_RIGHTS);
+	if ((b->castle_rights & rights) == rights) {
 		move = king_position;
-		for (int i = 0; i < 3; i++) {
+		for (int i = 0; i < 2; i++) {
 			move = validate_move(player_board | opponent_board, move_west(move));
-			if (move & (player_board | opponent_board)) {
-				move = 0ULL;
-				break;
-			}
 			if (move & opponent_attacks) {
 				move = 0ULL;
 				break;
 			}
 		}
-		queen_side_castle = move;
+
+		uint64_t test = validate_move(player_board | opponent_board, move_west(move));
+		if (test)
+			queen_side_castle = move;
+		else
+			queen_side_castle = 0ULL;
 	}
 
 	return king_side_castle | queen_side_castle;
@@ -691,6 +710,7 @@ uint64_t generate_king_attacks(uint8_t king_id, uint64_t king_position, board *b
 
 	// castle moves
 	if ((b->castle_rights & (color == WHITE ? WHITE_CASTLE_RIGHTS : BLACK_CASTLE_RIGHTS)) != 0) {
+		
 		move = validate_castle(king_position, color, b);
 		int moves_count = __builtin_popcountll(move);
 		for (int i = 0; i < moves_count; i++) {
@@ -711,12 +731,12 @@ uint8_t generate_id_for_promoted_piece(uint8_t piece_type, short color, board *b
 	if (!piece_counter) return 0;
 	(*piece_counter)++;
 	uint8_t piece_number = *piece_counter;
-	return (piece_color | piece_type | ((piece_number - 1) << 4)) | 64;
+	return (piece_color | piece_type | ((piece_number - 1) << 4)) | 0b10000000;
 }
 
 uint8_t get_id_of_promoted_piece(uint8_t piece_type, short color, short piece_number) {
 	uint8_t piece_color = color == WHITE ? 0 : 8;
-	return (piece_color | piece_type | ((piece_number - 1) << 4)) | 64;
+	return (uint8_t)(piece_color | piece_type | ((piece_number - 1) << 4)) | 0b10000000;
 }
 
 uint8_t new_piece(uint8_t _piece_type, uint8_t color, uint64_t position, board *b) {
@@ -728,13 +748,16 @@ uint8_t new_piece(uint8_t _piece_type, uint8_t color, uint64_t position, board *
 	}
 
 	// Store the result of realloc in a temporary variable
-	uint64_t *temp = (uint64_t *)realloc(*piece_type_ptr, sizeof(uint64_t) * (piece_number(piece_id) + 1));
-
+	// uint64_t *temp = (uint64_t *)realloc(*piece_type_ptr, sizeof(uint64_t) * (piece_number(piece_id) + 1));
+	uint64_t *temp = (uint64_t *)malloc(sizeof(uint64_t) * (piece_number(piece_id) + 1));
 	// Check if realloc succeeded
 	if (!temp) {
 		fprintf(stderr, "Memory allocation failed\n");
 		return 0;
 	}
+
+	memcpy(temp, *piece_type_ptr, sizeof(uint64_t) * piece_number(piece_id));
+	free(*piece_type_ptr);
 
 	// Update piece_type_ptr to the new memory location
 	*piece_type_ptr = temp;
@@ -908,7 +931,7 @@ void promotion_move_menu() {
 	return;
 }
 
-short make_move(square src, square dest, short turn, board *b, bool is_engine) {
+short make_move(square src, square dest, short turn, board *b, bool is_engine, uint8_t promotion_move_flag) {
 	/*
 	    THIS FUNCTION WILL:
 	    1. indentify the type of the move
@@ -1009,8 +1032,38 @@ short make_move(square src, square dest, short turn, board *b, bool is_engine) {
 			}
 		} else {
 			// IMPORTANT: ENGINE WILL ALWAYS PROMOTE TO QUEEN CHANGE BELOW SNIPPET IF YOU WANT TO MODIFY
-			status = color == WHITE ? WHITE_PROMOTES_TO_QUEEN : BLACK_PROMOTES_TO_QUEEN;
-			m.promoted_piece = get_id_of_promoted_piece(QUEEN, color, color == WHITE ? b->white->count.queens + 1 : b->black->count.queens + 1);
+			// status = color == WHITE ? WHITE_PROMOTES_TO_QUEEN : BLACK_PROMOTES_TO_QUEEN;
+			// m.promoted_piece = get_id_of_promoted_piece(QUEEN, color, color == WHITE ? b->white->count.queens + 1 : b->black->count.queens + 1);
+
+			status = promotion_move_flag;
+			switch (promotion_move_flag) {
+				case WHITE_PROMOTES_TO_QUEEN:
+					m.promoted_piece = get_id_of_promoted_piece(QUEEN, color, color == WHITE ? b->white->count.queens + 1 : b->black->count.queens + 1);
+					break;
+				case WHITE_PROMOTES_TO_KNIGHT:
+					m.promoted_piece = get_id_of_promoted_piece(KNIGHT, color, color == WHITE ? b->white->count.knights + 1 : b->black->count.knights + 1);
+					break;
+				case WHITE_PROMOTES_TO_ROOK:
+					m.promoted_piece = get_id_of_promoted_piece(ROOK, color, color == WHITE ? b->white->count.rooks + 1 : b->black->count.rooks + 1);
+					break;
+				case WHITE_PROMOTES_TO_BISHOP:
+					m.promoted_piece = get_id_of_promoted_piece(BISHOP, color, color == WHITE ? b->white->count.bishops + 1 : b->black->count.bishops + 1);
+					break;
+				case BLACK_PROMOTES_TO_QUEEN:
+					m.promoted_piece = get_id_of_promoted_piece(QUEEN, color, color == WHITE ? b->white->count.queens + 1 : b->black->count.queens + 1);
+					break;
+				case BLACK_PROMOTES_TO_KNIGHT:
+					m.promoted_piece = get_id_of_promoted_piece(KNIGHT, color, color == WHITE ? b->white->count.knights + 1 : b->black->count.knights + 1);
+					break;
+				case BLACK_PROMOTES_TO_ROOK:
+					m.promoted_piece = get_id_of_promoted_piece(ROOK, color, color == WHITE ? b->white->count.rooks + 1 : b->black->count.rooks + 1);
+					break;
+				case BLACK_PROMOTES_TO_BISHOP:
+					m.promoted_piece = get_id_of_promoted_piece(BISHOP, color, color == WHITE ? b->white->count.bishops + 1 : b->black->count.bishops + 1);
+					break;
+				default:
+					break;
+			}
 		}
 	}
 
@@ -1056,15 +1109,15 @@ short make_move(square src, square dest, short turn, board *b, bool is_engine) {
 	else if (piece_type(piece) == ROOK) {
 		if (color == WHITE) {
 			if (src.file == A && src.rank == 1) {
-				b->castle_rights &= ~WHITE_QUEEN_SIDE_CASTLE_RIGHTS;
+				b->castle_rights &= ~0b00000010;
 			} else if (src.file == H && src.rank == 1) {
-				b->castle_rights &= ~WHITE_KING_SIDE_CASTLE_RIGHTS;
+				b->castle_rights &= ~0b00000001;
 			}
 		} else {
 			if (src.file == A && src.rank == 8) {
-				b->castle_rights &= ~BLACK_KING_SIDE_CASTLE_RIGHTS;
+				b->castle_rights &= ~0b00100000;
 			} else if (src.file == H && src.rank == 8) {
-				b->castle_rights &= ~BLACK_QUEEN_SIDE_CASTLE_RIGHTS;
+				b->castle_rights &= ~0b00010000;
 			}
 		}
 	}
@@ -1083,13 +1136,18 @@ bool remove_memory_for_promoted_piece(uint8_t promoted_piece, board *b) {
 	}
 
 	// Store the result of realloc in a temporary variable
-	uint64_t *temp = (uint64_t *)realloc(*type_ptr, *counter * sizeof(uint64_t));
+	// uint64_t *temp = (uint64_t *)realloc(*type_ptr, *counter * sizeof(uint64_t));
+	uint64_t *temp = (uint64_t *)malloc(*counter * sizeof(uint64_t));
 
 	// Check if realloc succeeded
 	if (!temp && *counter > 0) {
 		fprintf(stderr, "Memory reallocation failed\n");
 		return false;
 	}
+
+	// Copy the contents of the old memory location to the new one
+	memcpy(temp, *type_ptr, *counter * sizeof(uint64_t));
+	free(*type_ptr);
 
 	// Update type_ptr to the new memory location
 	*type_ptr = temp;
@@ -1306,7 +1364,7 @@ void update_type_board(board *b, short turn) {
 }
 
 int lookup_index(uint8_t id) {
-	int promotion_flag = id & 64 ? 1 : 0;
+	int promotion_flag = id & 0b10000000 ? 1 : 0;
 	int _piece_type = piece_type(id);
 	int _piece_number = piece_number(id);
 
@@ -1320,6 +1378,12 @@ void update_attacks_for_color(board *b, short color) {
 	int standard_queens = 1;
 
 	short cursor = 0;
+	if (color == WHITE) {
+		b->white_lookup_table[0] = 0ULL;
+	} else {
+		b->black_lookup_table[0] = 0ULL;
+	}
+
 	switch (color) {
 		case WHITE:
 
@@ -1333,8 +1397,8 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = WHITE_KNIGHT_1;
 			for (int i = 0; i < b->white->count.knights; i++) {
-				if (i > standard_bishop_knight_rooks)
-					cursor |= 64;  // set the MSB to 1
+				if (i+1 > standard_bishop_knight_rooks)
+					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_knight_attacks(cursor, b->white->knights[i], b);
 				b->white_lookup_table[lookup_index(cursor)] = piece_attacks;
@@ -1344,8 +1408,8 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = WHITE_BISHOP_1;
 			for (int i = 0; i < b->white->count.bishops; i++) {
-				if (i > standard_bishop_knight_rooks)
-					cursor |= 64;  // set the MSB to 1
+				if (i+1 > standard_bishop_knight_rooks)
+					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_bishop_attacks(cursor, b->white->bishops[i], b);
 
@@ -1356,8 +1420,8 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = WHITE_ROOK_1;
 			for (int i = 0; i < b->white->count.rooks; i++) {
-				if (i > standard_bishop_knight_rooks)
-					cursor |= 64;  // set the MSB to 1
+				if (i+1 > standard_bishop_knight_rooks)
+					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_rook_attacks(cursor, b->white->rooks[i], b);
 				b->white_lookup_table[lookup_index(cursor)] = piece_attacks;
@@ -1367,8 +1431,8 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = WHITE_QUEEN;
 			for (int i = 0; i < b->white->count.queens; i++) {
-				if (i > standard_queens)
-					cursor |= 64;  // set the MSB to 1
+				if (i+1 > standard_queens)
+					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_queen_attacks(cursor, b->white->queen[i], b);
 				b->white_lookup_table[lookup_index(cursor)] = piece_attacks;
@@ -1380,7 +1444,7 @@ void update_attacks_for_color(board *b, short color) {
 			b->white_lookup_table[lookup_index(WHITE_KING)] = piece_attacks;
 			white_attacks |= piece_attacks;
 
-			b->white_lookup_table[0] = white_attacks;
+			b->white_lookup_table[0] |= white_attacks;  // POTENTIAL ERROR
 			break;
 		case BLACK:
 
@@ -1393,8 +1457,8 @@ void update_attacks_for_color(board *b, short color) {
 			}
 			cursor = BLACK_KNIGHT_1;
 			for (int i = 0; i < b->black->count.knights; i++) {
-				if (i > standard_bishop_knight_rooks)
-					cursor |= 64;  // set the MSB to 1
+				if (i+1 > standard_bishop_knight_rooks)
+					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_knight_attacks(cursor, b->black->knights[i], b);
 				b->black_lookup_table[lookup_index(cursor)] = piece_attacks;
@@ -1404,8 +1468,8 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = BLACK_BISHOP_1;
 			for (int i = 0; i < b->black->count.bishops; i++) {
-				if (i > standard_bishop_knight_rooks)
-					cursor |= 64;  // set the MSB to 1
+				if (i+1 > standard_bishop_knight_rooks)
+					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_bishop_attacks(cursor, b->black->bishops[i], b);
 				b->black_lookup_table[lookup_index(cursor)] = piece_attacks;
@@ -1415,8 +1479,8 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = BLACK_ROOK_1;
 			for (int i = 0; i < b->black->count.rooks; i++) {
-				if (i > standard_bishop_knight_rooks)
-					cursor |= 64;  // set the MSB to 1
+				if (i+1 > standard_bishop_knight_rooks)
+					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_rook_attacks(cursor, b->black->rooks[i], b);
 				b->black_lookup_table[lookup_index(cursor)] = piece_attacks;
@@ -1426,8 +1490,8 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = BLACK_QUEEN;
 			for (int i = 0; i < b->black->count.queens; i++) {
-				if (i > standard_queens)
-					cursor |= 64;  // set the MSB to 1
+				if (i+1 > standard_queens)
+					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_queen_attacks(cursor, b->black->queen[i], b);
 				b->black_lookup_table[lookup_index(cursor)] = piece_attacks;
@@ -1438,7 +1502,7 @@ void update_attacks_for_color(board *b, short color) {
 			b->black_lookup_table[lookup_index(BLACK_KING)] = piece_attacks;
 			black_attacks |= piece_attacks;
 
-			b->black_lookup_table[0] = black_attacks;
+			b->black_lookup_table[0] |= black_attacks;  // Potential error
 			break;
 		default:
 			break;
@@ -1567,7 +1631,6 @@ bool in_check_alt(short color, board *b) {
 			if (color == WHITE && j == king_rank + 1) {
 				return true;
 			}
-
 		}
 
 		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN) {
@@ -1608,8 +1671,8 @@ bool in_check_alt(short color, board *b) {
 			break;
 		}
 
-		if(piece_type(piece) == PAWN) {
-			if(color == BLACK && j == king_rank - 1) {
+		if (piece_type(piece) == PAWN) {
+			if (color == BLACK && j == king_rank - 1) {
 				return true;
 			}
 		}
@@ -1753,27 +1816,27 @@ unsigned int get_score(Move m, board *b) {
 
 void filter_legal_moves_v2(board *b, short turn) {
 	/*
-		PROBLEM WITH ALREADY EXISTING FUNCTION:
-		(*) we unnecessarily recompute the attacks of irrelevant pieces
-		for ex. if a bishop moves from f1 to c4 why am i updating attacks of pawn on h2 as nothing
-		has changed for the pawn this overhead grows exponentially when we calculate millions and 
-		billions of position. although there are lot of considerations still, there is room for 
-		optimization.
+	    PROBLEM WITH ALREADY EXISTING FUNCTION:
+	    (*) we unnecessarily recompute the attacks of irrelevant pieces
+	    for ex. if a bishop moves from f1 to c4 why am i updating attacks of pawn on h2 as nothing
+	    has changed for the pawn this overhead grows exponentially when we calculate millions and
+	    billions of position. although there are lot of considerations still, there is room for
+	    optimization.
 
-		RAW IDEAS ABOUT THE NEW FUNCTION:
-		(1) as per my raw intuition, when a piece moves from a source square to destination square
-		    that only affects the attacks of pieces lying in 8 directions of source square and 
-			destination square.
-		(2) although there are lot of edge cases and considerations like en passant, castling, 
-		    especially the knight moves but if we carefully take care of them we will be able to 
-			achieve satisfactory optimization
-		(3) (very raw) for knights we can precompute the probable attacks as its moves are static
-			it can save some time if not very large.
-		
-		PENDING:
-		(1) do we simulate all the moves after updating the list with this technique?
-		(2) move simulation is probably the most computationally demanding in our program so more 
-			we optimize it better it gets to reach more depths.
+	    RAW IDEAS ABOUT THE NEW FUNCTION:
+	    (1) as per my raw intuition, when a piece moves from a source square to destination square
+	        that only affects the attacks of pieces lying in 8 directions of source square and
+	        destination square.
+	    (2) although there are lot of edge cases and considerations like en passant, castling,
+	        especially the knight moves but if we carefully take care of them we will be able to
+	        achieve satisfactory optimization
+	    (3) (very raw) for knights we can precompute the probable attacks as its moves are static
+	        it can save some time if not very large.
+
+	    PENDING:
+	    (1) do we simulate all the moves after updating the list with this technique?
+	    (2) move simulation is probably the most computationally demanding in our program so more
+	        we optimize it better it gets to reach more depths.
 	 */
 }
 
@@ -1792,7 +1855,7 @@ void filter_legal_moves(board *b, short turn) {
 	for (int i = 0; i < pseudo_legal_moves->move_count; i++) {
 		Move current_move = pseudo_legal_moves->moves[i];
 
-		short status = make_move(current_move.src, current_move.dest, turn, b, true);
+		short status = make_move(current_move.src, current_move.dest, turn, b, true, current_move.type);
 
 		if (status == INVALID_MOVE) {
 			continue;
@@ -1820,7 +1883,7 @@ void filter_legal_moves(board *b, short turn) {
 
 			// If the move does not leave the player in check, it's legal
 			add_move(legal_moves, current_move);
-		}else {
+		} else {
 			// remove from lookup table
 			if (turn == WHITE) {
 				uint64_t dest_bb = get_bitboard(current_move.dest.file, current_move.dest.rank);

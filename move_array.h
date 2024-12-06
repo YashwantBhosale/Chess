@@ -23,7 +23,7 @@ typedef struct {
 } Move;
 */
 
-#define MAX_MOVES 256  // Maximum number of moves possible in a chess position
+#define MAX_MOVES 512  // Maximum number of moves possible in a chess position
 #define NULL_MOVE (Move){0}
 
 typedef struct MoveList {

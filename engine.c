@@ -52,7 +52,7 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 	}
 
 	// check the transposition table
-	uint64_t key = get_zobrist_key(b, &transposition_table);
+	uint64_t key = get_zobrist_key(b, &transposition_table, maximizing_player);
 	Entry* entry = get_entry(&transposition_table, key);
 
 	if (entry && entry->key && entry->depth >= depth) {
@@ -109,10 +109,11 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 			    .file = m.dest.file,
 			    .rank = m.dest.rank};
 
-			short status = make_move(src, dest, maximizing_player, b, true);
+			short status = make_move(src, dest, maximizing_player, b, true, m.type);
 
 			if (status == INVALID_MOVE) {
-				return (evaluated_move){INT_MIN, PLACEHOLDER_MOVE};
+				// return (evaluated_move){INT_MIN, PLACEHOLDER_MOVE};
+				continue;
 			}
 			evaluated_move eval = minimax(b, depth - 1, BLACK, alpha, beta);
 			
@@ -157,9 +158,10 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 			    .file = m.dest.file,
 			    .rank = m.dest.rank};
 
-			short status = make_move(src, dest, maximizing_player, b, true);
+			short status = make_move(src, dest, maximizing_player, b, true, m.type);
 			if (status == INVALID_MOVE) {
-				return (evaluated_move){INT_MAX, PLACEHOLDER_MOVE};
+				// return (evaluated_move){INT_MAX, PLACEHOLDER_MOVE};
+				continue;
 			}
 			evaluated_move eval = minimax(b, depth - 1, WHITE, alpha, beta);
 			Entry e = {

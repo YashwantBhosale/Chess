@@ -45,9 +45,10 @@ void init_zobrist(ZobristTable* z) {
     for (int i = 0; i < 4; i++) {
         z->castling[i] = random_64();
     }
-    for (int i = 0; i < 8; i++) {
-        z->en_passant[i] = random_64();
-    }
+    // for (int i = 0; i < 8; i++) {
+    //     z->en_passant[i] = random_64();
+    // }
+    z->en_passant = random_64();
 
     memset(z->table, 0, sizeof(z->table));
 }
@@ -66,7 +67,7 @@ unsigned piece_index(uint8_t piece) {
     return (piece_color(piece) * 6) + (piece_type(piece) - 1);
 }
 
-unsigned long long get_zobrist_key(board* b, ZobristTable* z) {
+unsigned long long get_zobrist_key(board* b, ZobristTable* z, short turn) {
     unsigned long long key = 0;
     
     for(int i = 0; i < 8; i++) {
@@ -78,12 +79,29 @@ unsigned long long get_zobrist_key(board* b, ZobristTable* z) {
         }
     }
 
-    /*
-        we may hash more stuff as well into the zobrist key.
-        1. turn
-        2. castling rights
-        3. en passant square
-    */
+    if(turn == WHITE) {
+        key ^= z->white_to_move;
+    }
+
+    if(b->castle_rights & WHITE_KING_SIDE_CASTLE_RIGHTS) {
+        key ^= z->castling[0];
+    }
+
+    if(b->castle_rights & WHITE_QUEEN_SIDE_CASTLE_RIGHTS) {
+        key ^= z->castling[1];
+    }
+
+    if(b->castle_rights & BLACK_KING_SIDE_CASTLE_RIGHTS) {
+        key ^= z->castling[2];
+    }
+
+    if(b->castle_rights & BLACK_QUEEN_SIDE_CASTLE_RIGHTS) {
+        key ^= z->castling[3];
+    }
+
+    if(b->en_passant_square) {
+        key ^= z->en_passant;
+    }
 
     return key;
 }

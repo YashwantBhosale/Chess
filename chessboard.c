@@ -444,24 +444,19 @@ void load_fen(board *b, char *fen) {
 	castle_rights = strchr(castle_rights + 1, ' ') + 1;  // Find the second space, then move to the next part
 
 	if (strchr(castle_rights, 'K')) {
-		// White can castle kingside
 		b->castle_rights |= WHITE_KING_SIDE_CASTLE_RIGHTS;
 	}
 	if (strchr(castle_rights, 'Q')) {
-		// White can castle queenside
 		b->castle_rights |= WHITE_QUEEN_SIDE_CASTLE_RIGHTS;
 	}
 	if (strchr(castle_rights, 'k')) {
-		// Black can castle kingside
 		b->castle_rights |= BLACK_KING_SIDE_CASTLE_RIGHTS;
 	}
 	if (strchr(castle_rights, 'q')) {
-		// Black can castle queenside
 		b->castle_rights |= BLACK_QUEEN_SIDE_CASTLE_RIGHTS;
 	}
 
 	if (strchr(castle_rights, 'K') == NULL && strchr(castle_rights, 'Q') == NULL && strchr(castle_rights, 'k') == NULL && strchr(castle_rights, 'q') == NULL) {
-		// No castling rights available
 		b->castle_rights = 0;
 	}
 

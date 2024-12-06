@@ -56,7 +56,7 @@ void remove_move(MoveList* list, Move move) {
 void print_movelist(MoveList* list) {
 	wprintf(L"Printing move list: total moves %d\n", list->move_count);
 	for (int i = 0; i < list->move_count; i++) {
-		wprintf(L"(%u, %c%d -> %c%d, %d), ", list->moves[i].piece, list->moves[i].src.file + 'A' - 1, list->moves[i].src.rank, list->moves[i].dest.file + 'A' - 1, list->moves[i].dest.rank, list->moves[i].score);
+		wprintf(L"(%c%d%c%d, %d), ", list->moves[i].src.file + 'A' - 1, list->moves[i].src.rank, list->moves[i].dest.file + 'A' - 1, list->moves[i].dest.rank, list->moves[i].type);
 	}
 	wprintf(L"\n");
 	return;

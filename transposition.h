@@ -33,7 +33,7 @@ typedef struct zobrist {
     unsigned long long keys[12][64];
     unsigned long long white_to_move;
     unsigned long long castling[4];
-    unsigned long long en_passant[8];
+    unsigned long long en_passant;
     Entry table[TABLE_SIZE];
 } ZobristTable;
 
@@ -42,6 +42,6 @@ extern ZobristTable transposition_table;
 unsigned long long random_64();
 void init_zobrist(ZobristTable* z);
 void insert_entry(ZobristTable* z, Entry e);
-unsigned long long get_zobrist_key(board* b, ZobristTable* z);
+unsigned long long get_zobrist_key(board* b, ZobristTable* z, short turn);
 Entry* get_entry(ZobristTable* z, unsigned long long key);
 #endif

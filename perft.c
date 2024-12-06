@@ -23,54 +23,66 @@ void print_squares_from_bb(uint64_t bb) {
 	wprintf(L"\n");
 }
 #define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+// #define STARTING_FEN "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
 #define TURN WHITE
 #define MAX_DEPTH 6
 
-
+// f8a3 725 755 30
+// f8b4 888 924 36
+// f8c5 1088 1132
+// f8e7 888 934
+// f8a8 718 748
+// f8b8 727 757
+// f8c8 927 965
 
 unsigned long long perfit(int depth, short turn, board* b) {
 	if (depth == 0) {
 		return 1ULL;
 	}
 
-	// Step 1: Select the correct move list based on the turn
 	MoveList* pseudo_legal_moves = turn == WHITE ? b->white_attacks : b->black_attacks;
 	MoveList* legal_moves = turn == WHITE ? b->white_legal_moves : b->black_legal_moves;
-
-	// Step 2: Clear the pseudo-legal and legal move lists before generating moves
-	pseudo_legal_moves->move_count = 0;
-	legal_moves->move_count = 0;
 
 	clear_move_list(pseudo_legal_moves);
 	clear_move_list(legal_moves);
 
-	// Step 3: Generate pseudo-legal moves and filter them into legal moves
-	update_attacks(b);            // Update attacks for the current turn
+	b->black_attacks->move_count = 0;
+	update_attacks_for_color(b, !turn);
+
+	b->white_attacks->move_count = 0;
+	update_attacks_for_color(b, turn);
 	filter_legal_moves(b, turn);  // Filter legal moves into legal_moves
 
-	// Step 4: Use the filtered legal moves list for node calculations
+	// Move lm = b->moves->top ? b->moves->top->move : (Move){0};
+	// if(lm.src.file == A && lm.src.rank == 7 && lm.dest.file == A && lm.dest.rank == 6) {
+	// 	print_movelist(b->black_legal_moves);
+	// }
+
 	unsigned long long nodes = 0ULL;
 	int move_count = legal_moves->move_count;
-
 	Move legal_moves_bk[move_count];
 	memcpy(legal_moves_bk, legal_moves->moves, sizeof(Move) * move_count);
 
 	uint64_t lookup_table_bk[97], *lookup_table_ptr;
 
-	if(turn == WHITE) {
+	if (turn == WHITE) {
 		lookup_table_ptr = b->white_lookup_table;
 		memcpy(lookup_table_bk, b->white_lookup_table, sizeof(uint64_t) * 97);
-	}else {
+	} else {
 		lookup_table_ptr = b->black_lookup_table;
 		memcpy(lookup_table_bk, b->black_lookup_table, sizeof(uint64_t) * 97);
 	}
 
+	uint64_t white_board_bk = b->white_board;
+	uint64_t black_board_bk = b->black_board;
 
 	for (int i = 0; i < move_count; i++) {
 		memcpy(legal_moves->moves, legal_moves_bk, sizeof(Move) * move_count);
 		memcpy(lookup_table_ptr, lookup_table_bk, sizeof(uint64_t) * 97);
+		b->white_board = white_board_bk;
+		b->black_board = black_board_bk;
 
-		if(turn == WHITE) {
+		if (turn == WHITE) {
 			b->white_legal_moves->move_count = move_count;
 		} else {
 			b->black_legal_moves->move_count = move_count;
@@ -81,27 +93,30 @@ unsigned long long perfit(int depth, short turn, board* b) {
 		}
 		Move m = legal_moves->moves[i];
 
+		// if(m.src.file == D && m.src.rank == 7 && m.dest.file == C && m.dest.rank == 8) {
+		// 	wprintf(L"Promoted piece: %d %d\n", m.promoted_piece, m.type);
+		// }
+
 		// Make the move
 		int status = make_move(
 		    (square){.file = m.src.file, .rank = m.src.rank},
 		    (square){.file = m.dest.file, .rank = m.dest.rank},
 		    turn,
 		    b,
-		    true);
+		    true,
+		    m.type);
 
 		if (status != INVALID_MOVE) {
 			// Calculate child nodes for this specific move
 			unsigned long long child_nodes = perfit(depth - 1, turn == WHITE ? BLACK : WHITE, b);
 			nodes += child_nodes;
 
-
 			// Undo the move to restore board state
 			unmake_move(b);
 
-
 			// Print the move and node count at max depth
 			if (depth == MAX_DEPTH) {
-				wprintf(L"%c%d -> %c%d: %llu \n",
+				wprintf(L"%c%d%c%d: %llu \n",
 				        m.src.file + 'a' - 1, m.src.rank,
 				        m.dest.file + 'a' - 1, m.dest.rank,
 				        child_nodes);
@@ -111,7 +126,7 @@ unsigned long long perfit(int depth, short turn, board* b) {
 			wprintf(L"%c%d -> %c%d: INVALID MOVE\n",
 			        m.src.file + 'a' - 1, m.src.rank,
 			        m.dest.file + 'a' - 1, m.dest.rank);
-			
+
 			wprintf(L"%d%d->%d%d\n", b->moves->top->move.src.file, b->moves->top->move.src.rank, b->moves->top->move.dest.file, b->moves->top->move.dest.rank);
 
 			// Additional debug information
@@ -146,10 +161,29 @@ int main() {
 	board b;
 	load_fen(&b, STARTING_FEN);
 	wprintf(L"Starting position\n");
-	print_board(&b, TURN);
+	// update_attacks(&b);
+	// filter_legal_moves(&b, TURN);
+
+	// print_board(&b, TURN);
+
+	update_attacks(&b);
+	filter_legal_moves(&b, WHITE);
+	// make_move((square){.file = D, .rank = 7}, (square){.file = C, .rank = 8}, WHITE, &b, true, WHITE_PROMOTES_TO_QUEEN);
+	
 	wprintf(L"=============================================================\n");
+	// wprintf(L"castle rights: %d %llu\n", b.castle_rights, b.castle_rights & BLACK_QUEEN_SIDE_CASTLE_RIGHTS);
+	// make_move((square){.file = A, .rank = 8}, (square){.file = B, .rank = 8}, TURN, &b, false, 0);
+	// wprintf(L"castle rights: %d %llu\n", b.castle_rights, b.castle_rights & BLACK_QUEEN_SIDE_CASTLE_RIGHTS);
 
+	// update_attacks(&b);
+	// filter_legal_moves(&b, BLACK);
+	// wprintf(L"queens = %d\n", b.white->count.queens);
+	// wprintf(L"new queen = %llu\n", b.square_table[C - 1][8 - 1]);
+	// print_squares_from_bb(b.white_lookup_table[lookup_index(b.square_table[C - 1][8 - 1])]);
+
+	// make_move((square){.file = A, .rank = 7}, (square){.file = A, .rank = 6}, BLACK, &b, true, 0);
+	// update_attacks(&b);
+	// filter_legal_moves(&b, TURN);
 	perfit_test(&b);
-
 	return 0;
 }
