@@ -33,22 +33,16 @@ uint64_t *get_pointer_to_piece(uint8_t piece_id, board *b) {
 			return NULL;
 		case PAWN:
 			return color == WHITE ? &b->white->pawns[index] : &b->black->pawns[index];
-
 		case KNIGHT:
 			return color == WHITE ? &b->white->knights[index] : &b->black->knights[index];
-
 		case BISHOP:
 			return color == WHITE ? &b->white->bishops[index] : &b->black->bishops[index];
-
 		case ROOK:
 			return color == WHITE ? &b->white->rooks[index] : &b->black->rooks[index];
-
 		case QUEEN:
 			return color == WHITE ? &b->white->queen[index] : &b->black->queen[index];
-
 		case KING:
 			return color == WHITE ? &b->white->king : &b->black->king;
-
 		default:
 			break;
 	}
@@ -83,6 +77,7 @@ void adjust_type_board_for_make_move(Move move, board *b) {
 		case CASTLE_MOVE:
 			*player_type_board &= ~old_b;
 			*player_type_board |= new_b;
+			
 			// King side castle
 			if (move.dest.file == G) {
 				*player_type_board &= ~(get_bitboard(H, move.src.rank));
@@ -140,6 +135,7 @@ void adjust_type_board_for_unmake_move(Move move, board *b) {
 		case CASTLE_MOVE:
 			*player_type_board &= ~new_b;
 			*player_type_board |= old_b;
+			
 			// King side castle
 			if (move.dest.file == G) {
 				*player_type_board &= ~get_bitboard(F, move.src.rank);
@@ -255,6 +251,7 @@ void add_move_to_list(uint64_t piece_position, uint64_t move, uint8_t type, boar
 	return;
 }
 
+// Generate Functions
 uint64_t generate_pawn_attacks(uint8_t pawn_id, uint64_t pawn_position, board *b) {
 	uint64_t attacks = 0ULL, move = 0ULL, player_board, opponent_board;
 	uint8_t color = piece_color(pawn_id);
@@ -588,6 +585,10 @@ uint64_t generate_knight_attacks(uint8_t knight_id, uint64_t knight_position, bo
 	return attacks;
 }
 
+/*
+ NOTE: This function doesn't check if the player has castle rights, that is responsibility
+ of the generate attacks function
+*/
 uint64_t validate_castle(uint64_t king_position, short color, board *b) {
 	uint64_t player_board, opponent_board, king_side_castle, queen_side_castle, move;
 
@@ -725,6 +726,13 @@ uint64_t generate_king_attacks(uint8_t king_id, uint64_t king_position, board *b
 	return attacks;
 }
 
+// This function doesn't modify the board state or piece count
+uint8_t get_id_of_promoted_piece(uint8_t piece_type, short color, short piece_number) {
+	uint8_t piece_color = color == WHITE ? 0 : 8;
+	return (uint8_t)(piece_color | piece_type | ((piece_number - 1) << 4)) | 0b10000000;
+}
+
+// This function updates the piece counter and hence changes the board state
 uint8_t generate_id_for_promoted_piece(uint8_t piece_type, short color, board *b) {
 	uint8_t piece_color = color == WHITE ? 0 : 8;
 	short *piece_counter = get_pointer_to_piece_counter(b, piece_type);
@@ -734,10 +742,6 @@ uint8_t generate_id_for_promoted_piece(uint8_t piece_type, short color, board *b
 	return (piece_color | piece_type | ((piece_number - 1) << 4)) | 0b10000000;
 }
 
-uint8_t get_id_of_promoted_piece(uint8_t piece_type, short color, short piece_number) {
-	uint8_t piece_color = color == WHITE ? 0 : 8;
-	return (uint8_t)(piece_color | piece_type | ((piece_number - 1) << 4)) | 0b10000000;
-}
 
 uint8_t new_piece(uint8_t _piece_type, uint8_t color, uint64_t position, board *b) {
 	uint8_t piece_id = generate_id_for_promoted_piece(_piece_type, color, b);
@@ -747,10 +751,7 @@ uint8_t new_piece(uint8_t _piece_type, uint8_t color, uint64_t position, board *
 		return 0;
 	}
 
-	// Store the result of realloc in a temporary variable
-	// uint64_t *temp = (uint64_t *)realloc(*piece_type_ptr, sizeof(uint64_t) * (piece_number(piece_id) + 1));
 	uint64_t *temp = (uint64_t *)malloc(sizeof(uint64_t) * (piece_number(piece_id) + 1));
-	// Check if realloc succeeded
 	if (!temp) {
 		fprintf(stderr, "Memory allocation failed\n");
 		return 0;
@@ -759,10 +760,7 @@ uint8_t new_piece(uint8_t _piece_type, uint8_t color, uint64_t position, board *
 	memcpy(temp, *piece_type_ptr, sizeof(uint64_t) * piece_number(piece_id));
 	free(*piece_type_ptr);
 
-	// Update piece_type_ptr to the new memory location
 	*piece_type_ptr = temp;
-
-	// Now use *piece_type_ptr safely
 	(*piece_type_ptr)[piece_number(piece_id)] = position;
 
 	square dest = get_square_from_bitboard(position);
@@ -794,6 +792,7 @@ uint8_t piece_type_from_promotion_flag(uint8_t flag) {
 	return 0;
 }
 
+// This function only updates the board state and doesn't validate the move
 bool move(square src, square dest, short move_type, board *b) {
 	uint64_t *src_piece, *dest_piece;
 	uint8_t piece, dest_piece_id, color;
@@ -946,7 +945,6 @@ short make_move(square src, square dest, short turn, board *b, bool is_engine, u
 	dest_piece = b->square_table[dest.file - 1][dest.rank - 1];
 	color = piece_color(piece);
 
-	// wprintf(L"make move 1\n");
 	Move m = {
 	    .src = src,
 	    .dest = dest,
@@ -959,12 +957,10 @@ short make_move(square src, square dest, short turn, board *b, bool is_engine, u
 
 	// check if the source square is empty
 	if (piece == EMPTY_SQUARE) {
-		// wprintf(L"Returned from make move because source square is empty.\n");
 		return INVALID_MOVE;
 	}
 	// check if the piece is of the same color as the turn
 	if (color != turn) {
-		// wprintf(L"Returned from make move because color and turn did not match. (%c,%d) -> (%c,%d)\n", src.file + 'A' - 1, src.rank, dest.file + 'A' - 1, dest.rank);
 		return INVALID_MOVE;
 	}
 
@@ -1031,10 +1027,6 @@ short make_move(square src, square dest, short turn, board *b, bool is_engine, u
 					return INVALID_MOVE;
 			}
 		} else {
-			// IMPORTANT: ENGINE WILL ALWAYS PROMOTE TO QUEEN CHANGE BELOW SNIPPET IF YOU WANT TO MODIFY
-			// status = color == WHITE ? WHITE_PROMOTES_TO_QUEEN : BLACK_PROMOTES_TO_QUEEN;
-			// m.promoted_piece = get_id_of_promoted_piece(QUEEN, color, color == WHITE ? b->white->count.queens + 1 : b->black->count.queens + 1);
-
 			status = promotion_move_flag;
 			switch (promotion_move_flag) {
 				case WHITE_PROMOTES_TO_QUEEN:
@@ -1073,9 +1065,7 @@ short make_move(square src, square dest, short turn, board *b, bool is_engine, u
 	bool flag = false;
 	if (get_bitboard(dest.file, dest.rank) & (color == WHITE ? b->white_lookup_table[lookup_index(piece)] : b->black_lookup_table[lookup_index(piece)])) {
 		flag = move(src, dest, status, b);
-		// update_attacks(b);
 	} else {
-		// wprintf(L"Returned from make move because move is not valid.\n");
 		return INVALID_MOVE;
 	}
 	if (!flag) {
@@ -1122,8 +1112,6 @@ short make_move(square src, square dest, short turn, board *b, bool is_engine, u
 		}
 	}
 
-	// if two step pawn move, set en passant square
-
 	return status;
 }
 bool remove_memory_for_promoted_piece(uint8_t promoted_piece, board *b) {
@@ -1136,10 +1124,8 @@ bool remove_memory_for_promoted_piece(uint8_t promoted_piece, board *b) {
 	}
 
 	// Store the result of realloc in a temporary variable
-	// uint64_t *temp = (uint64_t *)realloc(*type_ptr, *counter * sizeof(uint64_t));
 	uint64_t *temp = (uint64_t *)malloc(*counter * sizeof(uint64_t));
 
-	// Check if realloc succeeded
 	if (!temp && *counter > 0) {
 		fprintf(stderr, "Memory reallocation failed\n");
 		return false;
@@ -1177,7 +1163,7 @@ void undo_promotion(Move last_move, board *b) {
 	// deallocate memory for the promoted piece
 	remove_memory_for_promoted_piece(last_move.promoted_piece, b);
 
-	// restore castle rights and attack tables
+	// restore castle rights and en passant square
 	b->castle_rights = last_move.castle_rights;
 	b->en_passant_square = last_move.en_passant_square;
 	return;
@@ -1900,42 +1886,3 @@ void filter_legal_moves(board *b, short turn) {
 		unmake_move(b);  // Undo the move to restore board state
 	}
 }
-
-/*
-
-void filter_legal_moves(board *b, short turn) {
-    MoveList *list = turn == WHITE ? b->white_attacks : b->black_attacks;
-    if (!list || !list->head) return;
-
-    wprintf(L"Filtering moves: turn = %c\n", turn == WHITE ? 'W' : 'B');
-    print_movelist(list);
-
-
-    MoveNode *p = list->head;
-    int count = list->move_count;
-    int i = 0;
-    while (p != NULL && i < count) {
-        MoveNode *next = p->next;  // Store the next node before potentially removing `p`
-
-        short status = make_move((p->move).src, p->move.dest, turn, b, true);
-        if (status == INVALID_MOVE || in_check(turn, b)) {
-            // Remove the move if it's invalid or puts the king in check
-            remove_node(list, p);
-            if (turn == WHITE) {
-                b->white_lookup_table &= ~(get_bitboard((p->move).dest.file, (p->move).dest.rank));
-            } else {
-                b->black_lookup_table &= ~(get_bitboard((p->move).dest.file, (p->move).dest.rank));
-            }
-        }
-        if(status != INVALID_MOVE) {
-            unmake_move(b);  // Undo the move on the board
-        }
-        p = next;  // Move to the next node
-
-        i++;
-    }
-    wprintf(L"Filtered moves\n");
-    return;
-}
-
-*/

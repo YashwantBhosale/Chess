@@ -11,33 +11,25 @@
 #include "transposition.h"
 
 // Utility functions
-// piece color
 uint8_t piece_color(uint8_t piece_id) {
 	return piece_id & 8 ? BLACK : WHITE;
 }
 
-// piece type
 uint8_t piece_type(uint8_t piece_id) {
 	return piece_id & 7;
 }
 
-// piece number
 uint8_t piece_number(uint8_t piece_id) {
 	return (piece_id & 0b01110000) >> 4;
 }
 
 // function to get bitboard from rank and file
 uint64_t get_bitboard(uint8_t file, uint8_t rank) {
-	// Check if the square is valid
 	if (rank < 0 || rank > 8 || file < 0 || file > 8) return 0;
 
-	// Create a bitboard with the bit set at the index of the square
 	uint64_t bitboard = 1ULL;
 
-	// calculate the no. of times bit needs to be shifted
 	int index = (rank - 1) * 8 + file - 1;
-
-	// return the bitboard with the bit set at the appropriate postion of the square
 	return (bitboard << index);
 }
 
@@ -66,10 +58,8 @@ square get_square_from_bitboard(uint64_t bitboard) {
 	square s;
 	int file, rank;
 
-	// get the rank and file from the bitboard
 	get_rank_and_file_from_bitboard(bitboard, &file, &rank);
 
-	// Pach the rank and file to the square structure
 	s.file = file;
 	s.rank = rank;
 	return s;
@@ -159,19 +149,15 @@ uint64_t **get_pointer_to_piece_type(short color, uint8_t piece_type, board *b) 
 	}
 	return piece;
 }
-/* square table functions */
 void update_square_table(int file, int rank, uint8_t piece, board *b) {
 	b->square_table[file - 1][rank - 1] = piece;
 	return;
 }
 
 // Chessboard functions
-
-// Chessboard functions
 void init_board(board *b) {
 	if (!b) return;
 
-	// Allocate memory for pieces
 	b->white = (pieces *)malloc(sizeof(pieces));
 	if (!b->white) {
 		printf("Error: Failed to allocate memory for white pieces\n");
@@ -185,7 +171,6 @@ void init_board(board *b) {
 		return;
 	}
 
-	// Allocate and initialize move stack
 	b->moves = (move_stack *)malloc(sizeof(move_stack));
 	if (!b->moves) {
 		free(b->white);
@@ -195,7 +180,6 @@ void init_board(board *b) {
 	}
 	init_move_stack(b->moves);
 
-	// Allocate and initialize attack move lists
 	b->white_attacks = (MoveList *)malloc(sizeof(MoveList));
 	if (!b->white_attacks) {
 		free(b->white);
@@ -268,6 +252,7 @@ void init_board(board *b) {
 	memset(b->captured_pieces[1], 0, sizeof(b->captured_pieces[1]));
 
 }
+
 // function to initialize the pieces: allocate memory
 void init_pieces(pieces *type) {
 	// Memory is allocated dynamically to implement the pawn promotion feature by using realloc function
@@ -479,23 +464,18 @@ void print_piece_from_id(uint8_t id) {
             wprintf(!piece_color(id) ? L"♟ " : L"♙ ");
             break;
         case KNIGHT:
-            // wprintf(L"♘ ");
 			wprintf(!piece_color(id) ? L"♞ " : L"♘ ");
             break;
         case BISHOP:
-            // wprintf(L"♗ ");
 			wprintf(!piece_color(id) ? L"♝ " : L"♗ ");
             break;
         case ROOK:
-            // wprintf(L"♖ ");
 			wprintf(!piece_color(id) ? L"♜ " : L"♖ ");
             break;
         case QUEEN:
-            // wprintf(L"♕ ");
 			wprintf(!piece_color(id) ? L"♛ " : L"♕ ");
             break;
         case KING:
-            // wprintf(L"♔ ");
 			wprintf(!piece_color(id) ? L"♚ " : L"♔ ");
             break;
         default:
@@ -505,9 +485,6 @@ void print_piece_from_id(uint8_t id) {
 }
 
 void print_captured_pieces(board *b) {
-    // wchar_t black_pieces[] = {L'♙', L'♘', L'♗', L'♖', L'♕', L'♔',};
-	// wchar_t white_pieces[] = {L'♟', L'♞', L'♝', L'♜', L'♛', L'♚',};
-
     wprintf(L"Captured pieces: \n");
     wprintf(L"White: ");
     for(int i=0; i<b->captured_pieces_count[WHITE]; i++) {
@@ -528,22 +505,8 @@ void print_board(board *b, short turn) {
 	print_captured_pieces(b);
 	// wchar_t white_pieces[] = {L'P', L'N', L'B', L'R', L'Q', L'K'};
 	// wchar_t black_pieces[] = {L'p', L'n', L'b', L'r', L'q', L'k'};
-	wchar_t black_pieces[] = {
-	     L'♙',
-	     L'♘',
-	     L'♗',
-	     L'♖',
-	     L'♕',
-	     L'♔',
-	};
-	wchar_t white_pieces[] = {
-	     L'♟',
-	     L'♞',
-	     L'♝',
-	     L'♜',
-	     L'♛',
-	     L'♚',
-	};
+	wchar_t black_pieces[] = {L'♙',L'♘',L'♗',L'♖',L'♕',L'♔'};
+	wchar_t white_pieces[] = {L'♟',L'♞',L'♝',L'♜',L'♛',L'♚'};
 
 	/*
 	WHY & 7? : The piece is stored in the square table as a 8-bit number. The lower 3 bits represent the piece type.
@@ -619,6 +582,5 @@ void print_moves(uint64_t moves) {
 		}
 		bitboard <<= 1;
 	}
-	// wprintf(L"\n");
 	return;
 }

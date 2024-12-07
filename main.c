@@ -16,10 +16,7 @@
 #include "evaluation.h"
 #include "transposition.h"
 
-// #define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-#define TEST_FEN "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1"
-#define STARTING_FEN "5Q2/8/1p4k1/p4b2/5q2/1p3P2/4r1K1/8 w - - 0 1"
-
+#define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 ZobristTable transposition_table;
 
 square read_square() {
@@ -79,14 +76,6 @@ void two_player(board *b) {
 			return;
 		}
 
-		/*
-		    wprintf(L"White Attacks: \n");
-		    print_movelist(b->white_attacks);
-		    wprintf(L"\n");
-		    wprintf(L"Black Attacks: \n");
-		    print_movelist(b->black_attacks);
-		*/
-
 		wprintf(L"%s's Turn: ", turn == WHITE ? "White" : "Black");
 		square src = read_square();
 		square dest = read_square();
@@ -115,7 +104,7 @@ void single_player(board *b) {
 	double time_taken = 0;
 
 	while (1) {
-		// clrscr();
+		clrscr();
 		display_evaluation(evaluation);
 
 		if (turn == BLACK && b->moves->top) {
@@ -173,33 +162,6 @@ void single_player(board *b) {
 int main() {
 	setlocale(LC_ALL, "");
 	board b;
-	// load_fen(&b, "8/2p5/3p4/KP5r/1R3pPk/8/4P3/8 b - - 0 1");
-	// short turn = BLACK;
-
-	// update_attacks(&b);
-	// filter_legal_moves(&b, turn);
-	// print_movelist(turn == WHITE ? b.white_legal_moves : b.black_legal_moves);
-
-	// two_player(&b);
 	single_player(&b);
-	// char *fen[] = {
-	//     "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
-	//     "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
-	//     "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
-	//     "rnbqkbnr/pp2pppp/3p4/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3",
-	// };
-
-	// short turn = WHITE;
-	// int fen_count = sizeof(fen) / sizeof(fen[0]);
-
-	// for (int i = 0; i < fen_count; i++) {
-	// 	board b;                                                    
-	// 	load_fen(&b, fen[i]);                                       
-	// 	print_board(&b, turn);                                      
-	// 	wprintf(L"Evaluation: %lf\n", get_evaluation_of_board(&b)); 
-
-	// 	turn = !turn;  // Toggle turn
-	// }
-
 	return 0;
 }

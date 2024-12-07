@@ -134,12 +134,7 @@ enum Files {
 #define BLACK_KING 14
 
 // piece types
-enum { PAWN = 1,
-	   KNIGHT = 2,
-	   BISHOP = 3,
-	   ROOK = 4,
-	   QUEEN = 5,
-	   KING = 6 };
+enum { PAWN = 1, KNIGHT = 2, BISHOP = 3, ROOK = 4, QUEEN = 5, KING = 6 };
 
 
 // Please refer to the moves.c validate_castle function for the explanation of the castle rights
@@ -151,6 +146,8 @@ enum { PAWN = 1,
 
 #define BLACK_KING_SIDE_CASTLE_RIGHTS 0b01010000
 #define BLACK_QUEEN_SIDE_CASTLE_RIGHTS 0b01100000
+
+
 /*
     Structure for pieces:
     * Design:
@@ -163,12 +160,12 @@ enum { PAWN = 1,
     pieces, black and white. So instead of defining them seperately it is convenient
     to define them in a single structure.
 */
-typedef struct move_stack move_stack;
 
+// forward declaration
+typedef struct move_stack move_stack;
 struct MoveList;
 
 typedef struct {
-	// keep count of the number of pieces of each type
 	short pawns, knights, bishops, rooks, queens;
 } piece_count;
 
@@ -250,5 +247,4 @@ uint64_t white_board(board *b);
 uint64_t black_board(board *b);
 void print_square_from_bitboard(uint64_t bitboard);
 void print_moves(uint64_t moves);
-
 #endif

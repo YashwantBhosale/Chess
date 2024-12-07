@@ -73,7 +73,13 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 	clear_move_list(pseudo_legal_moves);
 	clear_move_list(legal_moves);
 
-	update_attacks(b);
+	// update_attacks(b);
+
+	b->black_attacks->move_count = 0;
+	update_attacks_for_color(b, !maximizing_player);
+	b->white_attacks->move_count = 0;
+	update_attacks_for_color(b, maximizing_player);
+
 	filter_legal_moves(b, maximizing_player);
 
 	int num_legal_moves = legal_moves->move_count;
@@ -81,6 +87,7 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 	// Sort the legal moves based on their scores
 	quick_sort(legal_moves, 0, num_legal_moves - 1);
 
+	// Backup essential elements in board state
 	Move legal_moves_bk[num_legal_moves];
 	memcpy(legal_moves_bk, legal_moves->moves, sizeof(Move) * num_legal_moves);
 
@@ -93,12 +100,16 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 		lookup_table_ptr = b->black_lookup_table;
 		memcpy(lookup_table_bk, b->black_lookup_table, sizeof(uint64_t) * 97);
 	}
+	uint64_t white_board_bk = b->white_board;
+	uint64_t black_board_bk = b->black_board;
 
 	if (maximizing_player == WHITE) {
 		double max_eval = INT_MIN;
 		for (int i = 0; i < num_legal_moves; i++) {
 			memcpy(legal_moves->moves, legal_moves_bk, sizeof(Move) * num_legal_moves);
 			memcpy(lookup_table_ptr, lookup_table_bk, sizeof(uint64_t) * 97);
+			b->white_board = white_board_bk;
+			b->black_board = black_board_bk;
 
 			Move m = legal_moves->moves[i];
 
@@ -112,7 +123,6 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 			short status = make_move(src, dest, maximizing_player, b, true, m.type);
 
 			if (status == INVALID_MOVE) {
-				// return (evaluated_move){INT_MIN, PLACEHOLDER_MOVE};
 				continue;
 			}
 			evaluated_move eval = minimax(b, depth - 1, BLACK, alpha, beta);
@@ -160,7 +170,6 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 
 			short status = make_move(src, dest, maximizing_player, b, true, m.type);
 			if (status == INVALID_MOVE) {
-				// return (evaluated_move){INT_MAX, PLACEHOLDER_MOVE};
 				continue;
 			}
 			evaluated_move eval = minimax(b, depth - 1, WHITE, alpha, beta);

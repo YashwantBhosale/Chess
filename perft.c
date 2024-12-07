@@ -25,7 +25,7 @@ void print_squares_from_bb(uint64_t bb) {
 #define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 // #define STARTING_FEN "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10"
 #define TURN WHITE
-#define MAX_DEPTH 5
+#define MAX_DEPTH 6
 
 unsigned long long perfit(int depth, short turn, board* b) {
 	if (depth == 0) {
@@ -38,17 +38,13 @@ unsigned long long perfit(int depth, short turn, board* b) {
 	clear_move_list(pseudo_legal_moves);
 	clear_move_list(legal_moves);
 
+	
 	b->black_attacks->move_count = 0;
 	update_attacks_for_color(b, !turn);
 
 	b->white_attacks->move_count = 0;
 	update_attacks_for_color(b, turn);
 	filter_legal_moves(b, turn);  // Filter legal moves into legal_moves
-
-	// Move lm = b->moves->top ? b->moves->top->move : (Move){0};
-	// if(lm.src.file == A && lm.src.rank == 7 && lm.dest.file == A && lm.dest.rank == 6) {
-	// 	print_movelist(b->black_legal_moves);
-	// }
 
 	unsigned long long nodes = 0ULL;
 	int move_count = legal_moves->move_count;
@@ -85,10 +81,6 @@ unsigned long long perfit(int depth, short turn, board* b) {
 		}
 		Move m = legal_moves->moves[i];
 
-		// if(m.src.file == D && m.src.rank == 7 && m.dest.file == C && m.dest.rank == 8) {
-		// 	wprintf(L"Promoted piece: %d %d\n", m.promoted_piece, m.type);
-		// }
-
 		// Make the move
 		int status = make_move(
 		    (square){.file = m.src.file, .rank = m.src.rank},
@@ -108,10 +100,7 @@ unsigned long long perfit(int depth, short turn, board* b) {
 
 			// Print the move and node count at max depth
 			if (depth == MAX_DEPTH) {
-				wprintf(L"%c%d%c%d: %llu \n",
-				        m.src.file + 'a' - 1, m.src.rank,
-				        m.dest.file + 'a' - 1, m.dest.rank,
-				        child_nodes);
+				wprintf(L"%c%d%c%d: %llu \n", m.src.file + 'a' - 1, m.src.rank, m.dest.file + 'a' - 1, m.dest.rank, child_nodes);
 			}
 		} else {
 			// Debugging output for invalid moves
@@ -156,7 +145,7 @@ int main() {
 	// update_attacks(&b);
 	// filter_legal_moves(&b, TURN);
 
-	// print_board(&b, TURN);
+	print_board(&b, TURN);
 
 	update_attacks(&b);
 	filter_legal_moves(&b, TURN);
