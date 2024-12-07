@@ -23,17 +23,9 @@ void print_squares_from_bb(uint64_t bb) {
 	wprintf(L"\n");
 }
 #define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-// #define STARTING_FEN "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
+// #define STARTING_FEN "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10"
 #define TURN WHITE
-#define MAX_DEPTH 6
-
-// f8a3 725 755 30
-// f8b4 888 924 36
-// f8c5 1088 1132
-// f8e7 888 934
-// f8a8 718 748
-// f8b8 727 757
-// f8c8 927 965
+#define MAX_DEPTH 5
 
 unsigned long long perfit(int depth, short turn, board* b) {
 	if (depth == 0) {
@@ -167,23 +159,33 @@ int main() {
 	// print_board(&b, TURN);
 
 	update_attacks(&b);
-	filter_legal_moves(&b, WHITE);
+	filter_legal_moves(&b, TURN);
+	// print_squares_from_bb(b.white_board);
+	// print_squares_from_bb(b.black_board);
 	// make_move((square){.file = D, .rank = 7}, (square){.file = C, .rank = 8}, WHITE, &b, true, WHITE_PROMOTES_TO_QUEEN);
-	
-	wprintf(L"=============================================================\n");
-	// wprintf(L"castle rights: %d %llu\n", b.castle_rights, b.castle_rights & BLACK_QUEEN_SIDE_CASTLE_RIGHTS);
-	// make_move((square){.file = A, .rank = 8}, (square){.file = B, .rank = 8}, TURN, &b, false, 0);
-	// wprintf(L"castle rights: %d %llu\n", b.castle_rights, b.castle_rights & BLACK_QUEEN_SIDE_CASTLE_RIGHTS);
+
+	// wprintf(L"=============================================================\n");
+	// // wprintf(L"castle rights: %d %llu\n", b.castle_rights, b.castle_rights & BLACK_QUEEN_SIDE_CASTLE_RIGHTS);
+	// // make_move((square){.file = A, .rank = 8}, (square){.file = B, .rank = 8}, TURN, &b, false, 0);
+	// // wprintf(L"castle rights: %d %llu\n", b.castle_rights, b.castle_rights & BLACK_QUEEN_SIDE_CASTLE_RIGHTS);
 
 	// update_attacks(&b);
 	// filter_legal_moves(&b, BLACK);
-	// wprintf(L"queens = %d\n", b.white->count.queens);
-	// wprintf(L"new queen = %llu\n", b.square_table[C - 1][8 - 1]);
-	// print_squares_from_bb(b.white_lookup_table[lookup_index(b.square_table[C - 1][8 - 1])]);
+	// // wprintf(L"queens = %d\n", b.white->count.queens);
+	// // wprintf(L"new queen = %llu\n", b.square_table[C - 1][8 - 1]);
+	// // print_squares_from_bb(b.white_lookup_table[lookup_index(b.square_table[C - 1][8 - 1])]);
 
-	// make_move((square){.file = A, .rank = 7}, (square){.file = A, .rank = 6}, BLACK, &b, true, 0);
+	// print_squares_from_bb(b.white_board);
+	// print_squares_from_bb(b.black_board);
+	// make_move((square){.file = F, .rank = 2}, (square){.file = H, .rank = 1}, BLACK, &b, true, 0);
 	// update_attacks(&b);
 	// filter_legal_moves(&b, TURN);
+
+	// print_squares_from_bb(generate_king_attacks(b.square_table[E - 1][1 - 1], b.white->king, &b));
+	// print_squares_from_bb(b.white_board);
+	// print_squares_from_bb(b.black_board);
+
+	// wprintf(L"%d\n", b.square_table[F - 1][1 - 1]);
 	perfit_test(&b);
 	return 0;
 }

@@ -19,3 +19,5 @@ bool in_check(short color, board *b);
 bool in_check_alt(short color, board *b);
 uint64_t validate_castle(uint64_t king_position, short color, board *b);
 void filter_legal_moves_alt(board *b, short turn);
+
+uint64_t generate_king_attacks(uint8_t king_id, uint64_t king_position, board *b);

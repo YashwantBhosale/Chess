@@ -1073,7 +1073,6 @@ short make_move(square src, square dest, short turn, board *b, bool is_engine, u
 	bool flag = false;
 	if (get_bitboard(dest.file, dest.rank) & (color == WHITE ? b->white_lookup_table[lookup_index(piece)] : b->black_lookup_table[lookup_index(piece)])) {
 		flag = move(src, dest, status, b);
-		adjust_type_board_for_make_move(m, b);
 		// update_attacks(b);
 	} else {
 		// wprintf(L"Returned from make move because move is not valid.\n");
@@ -1083,6 +1082,7 @@ short make_move(square src, square dest, short turn, board *b, bool is_engine, u
 		return INVALID_MOVE;
 	}
 	push(b->moves, m);
+	adjust_type_board_for_make_move(m, b);
 
 	if (piece_type(piece) == PAWN && abs(src.rank - dest.rank) == 2) {
 		b->en_passant_square = get_bitboard(src.file, color == WHITE ? 3 : 6);
