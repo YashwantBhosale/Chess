@@ -6,6 +6,7 @@
 
 #include "chessboard.h"
 #include "move_types.h"
+#include "move_array.h"
 #include "moves.h"
 #include "move_stack.h"
 #include "evaluation.h"
@@ -116,8 +117,12 @@ double get_evaluation_of_board(board* board) {
 
 	eval -= 0.5 * (num_doubled_blocked_pawns(board, WHITE) - num_doubled_blocked_pawns(board, BLACK));
 	eval -= 0.5 * (num_isolated_pawns(board, WHITE) - num_isolated_pawns(board, BLACK));
-	
-	
+
+	if(board->white_legal_moves->move_count == 0) {
+		eval = INT_MIN;
+	} else if(board->black_legal_moves->move_count == 0) {
+		eval = INT_MAX;
+	}
 
 	return eval;
 }

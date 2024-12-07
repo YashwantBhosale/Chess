@@ -14,10 +14,10 @@
 #include "move_array.h"
 #include "engine.h"
 #include "evaluation.h"
+#include "transposition.h"
 
 #define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-#define TEST_FEN "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1"
-// #define STARTING_FEN "r1bqkb1r/ppp1ppPp/2n2n2/3p4/5p2/8/PPPPP2P/RNBQKBNR w KQkq - 0 6"
+ZobristTable transposition_table;
 
 square read_square() {
 	char file;
@@ -76,19 +76,11 @@ void two_player(board *b) {
 			return;
 		}
 
-		/*
-		    wprintf(L"White Attacks: \n");
-		    print_movelist(b->white_attacks);
-		    wprintf(L"\n");
-		    wprintf(L"Black Attacks: \n");
-		    print_movelist(b->black_attacks);
-		*/
-
 		wprintf(L"%s's Turn: ", turn == WHITE ? "White" : "Black");
 		square src = read_square();
 		square dest = read_square();
 
-		int status = make_move(src, dest, turn, b, false);
+		int status = make_move(src, dest, turn, b, false, 0);
 		if (status == INVALID_MOVE)
 			continue;
 
@@ -103,6 +95,8 @@ void single_player(board *b) {
 	if (!b) return;
 
 	load_fen(b, STARTING_FEN);
+	init_zobrist(&transposition_table);
+
 	short turn = WHITE;
 	update_attacks(b);
 	double evaluation = 0;
@@ -135,7 +129,7 @@ void single_player(board *b) {
 			square src = read_square();
 			square dest = read_square();
 
-			int status = make_move(src, dest, turn, b, false);
+			int status = make_move(src, dest, turn, b, false, 0);
 			if (status == INVALID_MOVE) {
 				wprintf(L"invalid move\n");
 				continue;
@@ -146,7 +140,7 @@ void single_player(board *b) {
 			memcpy(lookup_table_backup, turn == WHITE ? b->white_lookup_table : b->black_lookup_table, sizeof(lookup_table_backup));
 
 			clock_t start = clock();
-			evaluated_move eval = minimax(b, 6, turn, INT_MIN, INT_MAX);
+			evaluated_move eval = minimax(b, 4, turn, INT_MIN, INT_MAX);
 			clock_t end = clock();
 
 			time_taken = ((double)(end - start) * 1000.0) / CLOCKS_PER_SEC;
@@ -156,7 +150,7 @@ void single_player(board *b) {
 			wprintf(L"Best move: ");
 			wprintf(L"%c%d -> %c%d\n", eval.best_move.src.file + 'a' - 1, eval.best_move.src.rank, eval.best_move.dest.file + 'a' - 1, eval.best_move.dest.rank);
 
-			make_move(eval.best_move.src, eval.best_move.dest, turn, b, true);
+			make_move(eval.best_move.src, eval.best_move.dest, turn, b, true, eval.best_move.type);
 		}
 
 		update_attacks(b);
@@ -168,34 +162,6 @@ void single_player(board *b) {
 int main() {
 	setlocale(LC_ALL, "");
 	board b;
-	// load_fen(&b, "8/2p5/3p4/KP5r/1R3pPk/8/4P3/8 b - - 0 1");
-	// short turn = BLACK;
-
-	// update_attacks(&b);
-	// filter_legal_moves(&b, turn);
-	// print_movelist(turn == WHITE ? b.white_legal_moves : b.black_legal_moves);
-
-	// two_player(&b);
 	single_player(&b);
 	return 0;
 }
-
-/*
-int main() {
-    setlocale(LC_CTYPE, "");
-    board b, *simulation_board;
-    init_board(&b);
-    print_board(&b, WHITE);
-
-    square src, dest;
-    src.file = E;
-    src.rank = 2;
-
-    dest.file = E;
-    dest.rank = 4;
-
-    short status = make_move(src, dest, WHITE, &b);
-    print_board(&b, BLACK);
-    return 0;
-}
-*/

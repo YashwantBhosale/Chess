@@ -1,6 +1,8 @@
 #ifndef CHESSBOARD_H
 #define CHESSBOARD_H
 #include <stdint.h>
+
+
 // #include "move_list.h"
 /*
 COLORS:
@@ -132,12 +134,7 @@ enum Files {
 #define BLACK_KING 14
 
 // piece types
-enum { PAWN = 1,
-	   KNIGHT = 2,
-	   BISHOP = 3,
-	   ROOK = 4,
-	   QUEEN = 5,
-	   KING = 6 };
+enum { PAWN = 1, KNIGHT = 2, BISHOP = 3, ROOK = 4, QUEEN = 5, KING = 6 };
 
 
 // Please refer to the moves.c validate_castle function for the explanation of the castle rights
@@ -149,6 +146,8 @@ enum { PAWN = 1,
 
 #define BLACK_KING_SIDE_CASTLE_RIGHTS 0b01010000
 #define BLACK_QUEEN_SIDE_CASTLE_RIGHTS 0b01100000
+
+
 /*
     Structure for pieces:
     * Design:
@@ -161,12 +160,12 @@ enum { PAWN = 1,
     pieces, black and white. So instead of defining them seperately it is convenient
     to define them in a single structure.
 */
-typedef struct move_stack move_stack;
 
+// forward declaration
+typedef struct move_stack move_stack;
 struct MoveList;
 
 typedef struct {
-	// keep count of the number of pieces of each type
 	short pawns, knights, bishops, rooks, queens;
 } piece_count;
 
@@ -187,6 +186,12 @@ typedef struct pieces {
     2. there is square table to keep track of what piece is on a particular square.
     ... More to be added as we progress. (like castling rights, en passant square etc.)
 */
+
+// structure for a square
+typedef struct square {
+	uint8_t rank;
+	uint8_t file;
+} square;
 
 typedef struct {
 	pieces *white, *black;
@@ -217,14 +222,8 @@ typedef struct {
     */
     uint64_t white_lookup_table[97];
     uint64_t black_lookup_table[97];
-    // ZobristTable transposition_table;
 } board;
 
-// structure for a square
-typedef struct square {
-	uint8_t rank;
-	uint8_t file;
-} square;
 
 // functions for chessboard
 void init_board(board *b);
@@ -248,5 +247,4 @@ uint64_t white_board(board *b);
 uint64_t black_board(board *b);
 void print_square_from_bitboard(uint64_t bitboard);
 void print_moves(uint64_t moves);
-
 #endif

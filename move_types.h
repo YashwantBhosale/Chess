@@ -26,14 +26,18 @@ typedef struct {
 #define CAPTURE_MOVE 1
 #define CASTLE_MOVE 2
 #define EN_PASSANT_MOVE 3
+
+// This is done so that we can recognize a prmotion move by looking at the last 4 bits
 #define WHITE_PROMOTION_MOVE 4 // 0000 0100
 #define BLACK_PROMOTION_MOVE 12 // 0000 1100
 
+// all white promotion moves will have 0100 in the last 4 bits
 #define WHITE_PROMOTES_TO_KNIGHT 0b00010100
 #define WHITE_PROMOTES_TO_BISHOP 0b00100100
 #define WHITE_PROMOTES_TO_ROOK 0b00110100
 #define WHITE_PROMOTES_TO_QUEEN 0b01000100
 
+// all black promotion moves will have 1100 in the last 4 bits
 #define BLACK_PROMOTES_TO_KNIGHT 0b00011100
 #define BLACK_PROMOTES_TO_BISHOP 0b00101100
 #define BLACK_PROMOTES_TO_ROOK 0b00111100
