@@ -1,8 +1,5 @@
-/tests/
-*.out
-*.zip
-*.txt
-.vscode/
-*.png
 *.log
+*.out
 *.exe
+*.o
+*.txt
