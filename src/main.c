@@ -16,7 +16,8 @@
 #include "evaluation.h"
 #include "transposition.h"
 
-#define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+//#define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+#define STARTING_FEN "7r/8/4K1k1/1Q6/8/3N4/3q4/8 w - - 0 1"
 ZobristTable transposition_table;
 
 square read_square() {
@@ -162,6 +163,18 @@ void single_player(board *b) {
 int main() {
 	setlocale(LC_ALL, "");
 	board b;
-	single_player(&b);
+	//single_player(&b);
+	load_fen(&b,STARTING_FEN);
+	
+	// update opponent attacks first
+	clear_move_list(b.black_attacks);	
+	update_attacks_for_color(&b, BLACK);
+	
+	clear_move_list(b.white_attacks);
+	update_attacks_for_color(&b, WHITE);
+
+	filter_legal_moves(&b, WHITE);
+	print_squares_from_bb(b.black_lookup_table[0]);
+	print_movelist(b.white_legal_moves);
 	return 0;
 }

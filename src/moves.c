@@ -656,60 +656,62 @@ uint64_t validate_castle(uint64_t king_position, short color, board *b) {
 }
 
 uint64_t generate_king_attacks(uint8_t king_id, uint64_t king_position, board *b) {
-	uint64_t attacks = 0ULL, move = 0ULL, player_board;
+	uint64_t attacks = 0ULL, move = 0ULL, player_board, opponent_attacks = 0ULL;
 	uint8_t color = piece_color(king_id);
 
 	player_board = color == WHITE ? b->white_board : b->black_board;
+	opponent_attacks = color == WHITE ? b->black_lookup_table[0] : b->white_lookup_table[0];
 
 	move = validate_move(player_board, move_north(king_position));
-	if (move) {
+	if (move && !(move & opponent_attacks)) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
 
 	move = validate_move(player_board, move_south(king_position));
-	if (move) {
+	if (move && !(move & opponent_attacks)) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
 
 	move = validate_move(player_board, move_east(king_position));
-	if (move) {
+	if (move && !(move & opponent_attacks)) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
 
 	move = validate_move(player_board, move_west(king_position));
-	if (move) {
+	if (move && !(move & opponent_attacks)) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
 
 	move = validate_move(player_board, move_north_east(king_position));
-	if (move) {
+	if (move && !(move & opponent_attacks)) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
 
 	move = validate_move(player_board, move_north_west(king_position));
-	if (move) {
+	if (move && !(move & opponent_attacks)) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
 
 	move = validate_move(player_board, move_south_east(king_position));
-	if (move) {
+	if (move && !(move & opponent_attacks)) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
 
 	move = validate_move(player_board, move_south_west(king_position));
-	if (move) {
+	if (move && !(move & opponent_attacks)) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
 
-	// castle moves
+	// castle moves 
+	// PENDING: NO CHECK FOR OPPONENT ATTACKS CAUSE I AM NOT SURE
 	if ((b->castle_rights & (color == WHITE ? WHITE_CASTLE_RIGHTS : BLACK_CASTLE_RIGHTS)) != 0) {
 		
 		move = validate_castle(king_position, color, b);
