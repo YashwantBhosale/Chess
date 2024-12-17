@@ -663,19 +663,19 @@ uint64_t generate_king_attacks(uint8_t king_id, uint64_t king_position, board *b
 	opponent_attacks = color == WHITE ? b->black_lookup_table[0] : b->white_lookup_table[0];
 
 	move = validate_move(player_board, move_north(king_position));
-	if (move && !(move & opponent_attacks)) {
+	if (move) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
 
 	move = validate_move(player_board, move_south(king_position));
-	if (move && !(move & opponent_attacks)) {
+	if (move) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
 
 	move = validate_move(player_board, move_east(king_position));
-	if (move && !(move & opponent_attacks)) {
+	if (move) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
@@ -687,25 +687,25 @@ uint64_t generate_king_attacks(uint8_t king_id, uint64_t king_position, board *b
 	}
 
 	move = validate_move(player_board, move_north_east(king_position));
-	if (move && !(move & opponent_attacks)) {
+	if (move) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
 
 	move = validate_move(player_board, move_north_west(king_position));
-	if (move && !(move & opponent_attacks)) {
+	if (move) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
 
 	move = validate_move(player_board, move_south_east(king_position));
-	if (move && !(move & opponent_attacks)) {
+	if (move) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
 
 	move = validate_move(player_board, move_south_west(king_position));
-	if (move && !(move & opponent_attacks)) {
+	if (move) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
@@ -1554,7 +1554,7 @@ bool in_check_alt(short color, board *b) {
 		if (piece_color(piece) == color) {
 			break;
 		}
-		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN) {
+		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
 			return true;
 		}
 		break;
@@ -1569,7 +1569,7 @@ bool in_check_alt(short color, board *b) {
 		if (piece_color(piece) == color) {
 			break;
 		}
-		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN) {
+		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
 			return true;
 		}
 		break;
@@ -1584,7 +1584,7 @@ bool in_check_alt(short color, board *b) {
 		if (piece_color(piece) == color) {
 			break;
 		}
-		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN) {
+		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
 			return true;
 		}
 		break;
@@ -1599,7 +1599,7 @@ bool in_check_alt(short color, board *b) {
 		if (piece_color(piece) == color) {
 			break;
 		}
-		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN) {
+		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
 			return true;
 		}
 		break;
@@ -1621,7 +1621,7 @@ bool in_check_alt(short color, board *b) {
 			}
 		}
 
-		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN) {
+		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
 			return true;
 		}
 		break;
@@ -1643,7 +1643,7 @@ bool in_check_alt(short color, board *b) {
 			}
 		}
 
-		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN) {
+		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
 			return true;
 		}
 		break;
@@ -1665,7 +1665,7 @@ bool in_check_alt(short color, board *b) {
 			}
 		}
 
-		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN) {
+		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
 			return true;
 		}
 		break;
@@ -1687,7 +1687,7 @@ bool in_check_alt(short color, board *b) {
 			}
 		}
 
-		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN) {
+		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
 			return true;
 		}
 
