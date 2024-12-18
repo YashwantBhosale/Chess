@@ -105,19 +105,19 @@ short *get_pointer_to_piece_counter(board *b, uint8_t piece_id) {
 	short *piece_counter;
 	switch (piece_type(piece_id)) {
 		case PAWN:
-			piece_counter = &b->white->count.pawns;
+			piece_counter = piece_color(piece_id) == WHITE ? &b->white->count.pawns : &b->black->count.pawns ;
 			break;
 		case KNIGHT:
-			piece_counter = &b->white->count.knights;
+			piece_counter = piece_color(piece_id) == WHITE ? &b->white->count.knights : &b->black->count.knights;
 			break;
 		case BISHOP:
-			piece_counter = &b->white->count.bishops;
+			piece_counter = piece_color(piece_id) == WHITE ? &b->white->count.bishops : &b->black->count.bishops;
 			break;
 		case ROOK:
-			piece_counter = &b->white->count.rooks;
+			piece_counter = piece_color(piece_id) == WHITE ? &b->white->count.rooks : &b->black->count.rooks ;
 			break;
 		case QUEEN:
-			piece_counter = &b->white->count.queens;
+			piece_counter = piece_color(piece_id) == WHITE ? &b->white->count.queens : &b->black->count.queens;
 			break;
 
 		default:

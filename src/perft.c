@@ -28,12 +28,11 @@ void print_squares_from_bb(uint64_t bb) {
 	wprintf(L"\n");
 }
 #define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-// #define STARTING_FEN "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10"
 #define TURN WHITE
 // #define MAX_DEPTH 6
 
 typedef struct {
-	char *fen;
+	char* fen;
 	int depth;
 	unsigned long long nodes;
 	unsigned long long expected_nodes;
@@ -47,12 +46,12 @@ typedef struct {
 #define TEST_6 "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10 "
 
 const PerftTest perft_test_suite[] = {
-	(PerftTest) {TEST_1, 6, 0, 119060324}, // {20, 400, 8902, 197281, 4865609, 119060324}
-	(PerftTest) {TEST_2, 5, 0, 193690690}, // {48, 2039, 97862, 4085603, 193690690}
-	(PerftTest) {TEST_3, 7, 0, 11030083}, // {14, 191, 2812, 43238, 674624, 11030083}
-	(PerftTest) {TEST_4, 6, 0, 15833292}, // {6, 264, 9467, 422333, 15833292}
-	(PerftTest) {TEST_5, 5, 0, 89941194}, // {44, 1486, 62379, 2103487, 89941194}
-	(PerftTest) {TEST_6, 5, 0, 164075551} // {46, 2079, 89890, 3894594, 164075551}
+    (PerftTest){TEST_1, 6, 0, 119060324},  // {20, 400, 8902, 197281, 4865609, 119060324}
+    (PerftTest){TEST_2, 5, 0, 193690690},  // {48, 2039, 97862, 4085603, 193690690}
+    (PerftTest){TEST_3, 7, 0, 178633661},   // {14, 191, 2812, 43238, 674624, 11030083}
+    (PerftTest){TEST_4, 5, 0, 15833292},   // {6, 264, 9467, 422333, 15833292}
+    (PerftTest){TEST_5, 5, 0, 89941194},   // {44, 1486, 62379, 2103487, 89941194}
+    (PerftTest){TEST_6, 5, 0, 164075551}   // {46, 2079, 89890, 3894594, 164075551}
 };
 
 unsigned long long perfit(int depth, short turn, board* b, const int max_depth) {
@@ -66,7 +65,6 @@ unsigned long long perfit(int depth, short turn, board* b, const int max_depth) 
 	clear_move_list(pseudo_legal_moves);
 	clear_move_list(legal_moves);
 
-	
 	b->black_attacks->move_count = 0;
 	update_attacks_for_color(b, !turn);
 
@@ -128,10 +126,8 @@ unsigned long long perfit(int depth, short turn, board* b, const int max_depth) 
 
 			// Print the move and node count at max depth
 			if (depth == max_depth) {
-				wprintf(L"%c%d%c%d: %llu\n", m.src.file + 'a' - 1, m.src.rank, m.dest.file + 'a' - 1, m.dest.rank, child_nodes);
+				wprintf(L"\"%c%d%c%d\": %llu,\n", m.src.file + 'a' - 1, m.src.rank, m.dest.file + 'a' - 1, m.dest.rank, child_nodes);
 			}
-			
-			
 
 		} else {
 			// Debugging output for invalid moves
@@ -154,22 +150,37 @@ unsigned long long perfit(int depth, short turn, board* b, const int max_depth) 
 	return nodes;
 }
 
-void single_perft_test(const char *fen, int depth) {
+void single_perft_test(const char* fen, int depth, int turn) {
 	board b;
-	load_fen(&b, (char *)fen);
+	load_fen(&b, (char*)fen);
 	clear_move_list(b.white_attacks);
 	clear_move_list(b.black_attacks);
 
-	update_attacks_for_color(&b, BLACK);
-	update_attacks_for_color(&b, WHITE);
+	if (turn == WHITE) {
+		update_attacks_for_color(&b, BLACK);
+		update_attacks_for_color(&b, WHITE);
 
-	print_board(&b, WHITE);
-	filter_legal_moves(&b, WHITE);
+		filter_legal_moves(&b, WHITE);
+	} else {
+		update_attacks_for_color(&b, WHITE);
+		update_attacks_for_color(&b, BLACK);
 
-	wprintf(L"========================================\n");
+		filter_legal_moves(&b, BLACK);
+	}
+
+	wprintf(L"White board: ");
+	print_squares_from_bb(b.white_board);
+
+	wprintf(L"\nBlack board: ");
+	print_squares_from_bb(b.black_board);
+
+	wprintf(L"\nblack king attacks: ");
+	print_squares_from_bb(generate_king_attacks(BLACK_KING, b.black->king, &b));
+
+	wprintf(L"\n========================================\n");
 
 	clock_t start = clock();
-	unsigned long long nodes = perfit(depth, TURN, &b, depth);
+	unsigned long long nodes = perfit(depth, turn, &b, depth);
 	clock_t end = clock();
 
 	wprintf(L"Nodes: %llu\n", nodes);
@@ -177,7 +188,6 @@ void single_perft_test(const char *fen, int depth) {
 
 	return;
 }
-
 
 void perfit_test() {
 	int num_tests = sizeof(perft_test_suite) / sizeof(PerftTest);
@@ -198,8 +208,7 @@ void perfit_test() {
 		double time = ((double)(end - start) * 1000.0) / CLOCKS_PER_SEC;
 		wprintf(L"Nodes: %llu, time_ms = %.2lf\n", nodes, time);
 
-		
-		if(nodes == perft_test_suite[i].expected_nodes) {
+		if (nodes == perft_test_suite[i].expected_nodes) {
 			wprintf(L"Test %d: " GREEN_TEXT "PASSED\n" RESET, i + 1);
 		} else {
 			wprintf(L"Test %d: " RED_TEXT "FAILED\n" RESET, i + 1);
@@ -208,30 +217,8 @@ void perfit_test() {
 	}
 }
 
-void display_report() {
-
-}
-
 int main() {
 	setlocale(LC_ALL, "");
-	// perfit_test();
-	
-	single_perft_test(TEST_2, 4);
-
-	// board b;
-	// load_fen(&b, "r3k2r/p1ppqpb1/bn1Ppnp1/4N3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-	// clear_move_list(b.white_attacks);
-	// clear_move_list(b.black_attacks);
-
-	// update_attacks_for_color(&b, BLACK);
-	// update_attacks_for_color(&b, WHITE);
-
-	// print_board(&b, WHITE);
-
-	// make_move((square) {.file = A, .rank = 1}, (square) {.file = B, .rank = 1}, WHITE, &b, false, 0);
-	// make_move((square) {.file = A, .rank = 6}, (square) {.file = B, .rank = 5}, BLACK, &b, false, 0);
-
-	// unsigned long long nodes = perfit(1, WHITE, &b, 1);
-	// wprintf(L"Nodes: %llu\n", nodes);
+	perfit_test();
 	return 0;
 }

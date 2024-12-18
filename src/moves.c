@@ -77,7 +77,7 @@ void adjust_type_board_for_make_move(Move move, board *b) {
 		case CASTLE_MOVE:
 			*player_type_board &= ~old_b;
 			*player_type_board |= new_b;
-			
+
 			// King side castle
 			if (move.dest.file == G) {
 				*player_type_board &= ~(get_bitboard(H, move.src.rank));
@@ -135,7 +135,7 @@ void adjust_type_board_for_unmake_move(Move move, board *b) {
 		case CASTLE_MOVE:
 			*player_type_board &= ~new_b;
 			*player_type_board |= old_b;
-			
+
 			// King side castle
 			if (move.dest.file == G) {
 				*player_type_board &= ~get_bitboard(F, move.src.rank);
@@ -605,12 +605,12 @@ uint64_t validate_castle(uint64_t king_position, short color, board *b) {
 		return 0ULL;
 	}
 
-	if(color == WHITE) {
-		if((king_position & get_bitboard(E, 1))== 0) {
+	if (color == WHITE) {
+		if ((king_position & get_bitboard(E, 1)) == 0) {
 			return 0ULL;
 		}
-	}else {
-		if((king_position & get_bitboard(E, 8))== 0) {
+	} else {
+		if ((king_position & get_bitboard(E, 8)) == 0) {
 			return 0ULL;
 		}
 	}
@@ -681,7 +681,7 @@ uint64_t generate_king_attacks(uint8_t king_id, uint64_t king_position, board *b
 	}
 
 	move = validate_move(player_board, move_west(king_position));
-	if (move && !(move & opponent_attacks)) {
+	if (move) {
 		add_move_to_list(king_position, move, NORMAL_MOVE, b);
 		attacks |= move;
 	}
@@ -710,10 +710,9 @@ uint64_t generate_king_attacks(uint8_t king_id, uint64_t king_position, board *b
 		attacks |= move;
 	}
 
-	// castle moves 
+	// castle moves
 	// PENDING: NO CHECK FOR OPPONENT ATTACKS CAUSE I AM NOT SURE
 	if ((b->castle_rights & (color == WHITE ? WHITE_CASTLE_RIGHTS : BLACK_CASTLE_RIGHTS)) != 0) {
-		
 		move = validate_castle(king_position, color, b);
 		int moves_count = __builtin_popcountll(move);
 		for (int i = 0; i < moves_count; i++) {
@@ -737,13 +736,12 @@ uint8_t get_id_of_promoted_piece(uint8_t piece_type, short color, short piece_nu
 // This function updates the piece counter and hence changes the board state
 uint8_t generate_id_for_promoted_piece(uint8_t piece_type, short color, board *b) {
 	uint8_t piece_color = color == WHITE ? 0 : 8;
-	short *piece_counter = get_pointer_to_piece_counter(b, piece_type);
+	short *piece_counter = get_pointer_to_piece_counter(b, (piece_type | piece_color));
 	if (!piece_counter) return 0;
 	(*piece_counter)++;
 	uint8_t piece_number = *piece_counter;
 	return (piece_color | piece_type | ((piece_number - 1) << 4)) | 0b10000000;
 }
-
 
 uint8_t new_piece(uint8_t _piece_type, uint8_t color, uint64_t position, board *b) {
 	uint8_t piece_id = generate_id_for_promoted_piece(_piece_type, color, b);
@@ -1385,7 +1383,7 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = WHITE_KNIGHT_1;
 			for (int i = 0; i < b->white->count.knights; i++) {
-				if (i+1 > standard_bishop_knight_rooks)
+				if (i + 1 > standard_bishop_knight_rooks)
 					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_knight_attacks(cursor, b->white->knights[i], b);
@@ -1396,7 +1394,7 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = WHITE_BISHOP_1;
 			for (int i = 0; i < b->white->count.bishops; i++) {
-				if (i+1 > standard_bishop_knight_rooks)
+				if (i + 1 > standard_bishop_knight_rooks)
 					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_bishop_attacks(cursor, b->white->bishops[i], b);
@@ -1408,7 +1406,7 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = WHITE_ROOK_1;
 			for (int i = 0; i < b->white->count.rooks; i++) {
-				if (i+1 > standard_bishop_knight_rooks)
+				if (i + 1 > standard_bishop_knight_rooks)
 					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_rook_attacks(cursor, b->white->rooks[i], b);
@@ -1419,7 +1417,7 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = WHITE_QUEEN;
 			for (int i = 0; i < b->white->count.queens; i++) {
-				if (i+1 > standard_queens)
+				if (i + 1 > standard_queens)
 					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_queen_attacks(cursor, b->white->queen[i], b);
@@ -1445,9 +1443,9 @@ void update_attacks_for_color(board *b, short color) {
 			}
 			cursor = BLACK_KNIGHT_1;
 			for (int i = 0; i < b->black->count.knights; i++) {
-				if (i+1 > standard_bishop_knight_rooks)
+				if (i + 1 > standard_bishop_knight_rooks) {
 					cursor |= 0b10000000;  // set the MSB to 1
-
+				}
 				piece_attacks = generate_knight_attacks(cursor, b->black->knights[i], b);
 				b->black_lookup_table[lookup_index(cursor)] = piece_attacks;
 				black_attacks |= piece_attacks;
@@ -1456,7 +1454,7 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = BLACK_BISHOP_1;
 			for (int i = 0; i < b->black->count.bishops; i++) {
-				if (i+1 > standard_bishop_knight_rooks)
+				if (i + 1 > standard_bishop_knight_rooks)
 					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_bishop_attacks(cursor, b->black->bishops[i], b);
@@ -1467,7 +1465,7 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = BLACK_ROOK_1;
 			for (int i = 0; i < b->black->count.rooks; i++) {
-				if (i+1 > standard_bishop_knight_rooks)
+				if (i + 1 > standard_bishop_knight_rooks)
 					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_rook_attacks(cursor, b->black->rooks[i], b);
@@ -1478,7 +1476,7 @@ void update_attacks_for_color(board *b, short color) {
 
 			cursor = BLACK_QUEEN;
 			for (int i = 0; i < b->black->count.queens; i++) {
-				if (i+1 > standard_queens)
+				if (i + 1 > standard_queens)
 					cursor |= 0b10000000;  // set the MSB to 1
 
 				piece_attacks = generate_queen_attacks(cursor, b->black->queen[i], b);
@@ -1539,6 +1537,9 @@ bool in_check_alt(short color, board *b) {
 	    5. also we need to specially take care of the discovered attacks, pins etc.
 
 	    ... more things to consider
+
+	    Here, for king to king check statements are put inside loops that is redundant i guess we may put it outside
+	    to check only once.
 	 */
 
 	uint64_t king_position = color == WHITE ? b->white->king : b->black->king;
@@ -1554,9 +1555,15 @@ bool in_check_alt(short color, board *b) {
 		if (piece_color(piece) == color) {
 			break;
 		}
-		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
+		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN) {
 			return true;
 		}
+
+		// When checking for opponent king, it should be only one square away
+		if (piece_type(piece) == KING && i == king_rank + 1) {
+			return true;
+		}
+
 		break;
 	}
 
@@ -1569,7 +1576,11 @@ bool in_check_alt(short color, board *b) {
 		if (piece_color(piece) == color) {
 			break;
 		}
-		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
+		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN) {
+			return true;
+		}
+
+		if (piece_type(piece) == KING && i == king_rank - 1) {
 			return true;
 		}
 		break;
@@ -1584,7 +1595,11 @@ bool in_check_alt(short color, board *b) {
 		if (piece_color(piece) == color) {
 			break;
 		}
-		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
+		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN) {
+			return true;
+		}
+
+		if (piece_type(piece) == KING && i == king_file + 1) {
 			return true;
 		}
 		break;
@@ -1599,7 +1614,11 @@ bool in_check_alt(short color, board *b) {
 		if (piece_color(piece) == color) {
 			break;
 		}
-		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
+		if (piece_type(piece) == ROOK || piece_type(piece) == QUEEN) {
+			return true;
+		}
+
+		if (piece_type(piece) == KING && i == king_file - 1) {
 			return true;
 		}
 		break;
@@ -1621,7 +1640,11 @@ bool in_check_alt(short color, board *b) {
 			}
 		}
 
-		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
+		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN) {
+			return true;
+		}
+
+		if (piece_type(piece) == KING && i == king_file + 1 && j == king_rank + 1) {
 			return true;
 		}
 		break;
@@ -1643,7 +1666,11 @@ bool in_check_alt(short color, board *b) {
 			}
 		}
 
-		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
+		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN) {
+			return true;
+		}
+
+		if (piece_type(piece) == KING && i == king_file + 1 && j == king_rank - 1) {
 			return true;
 		}
 		break;
@@ -1665,7 +1692,11 @@ bool in_check_alt(short color, board *b) {
 			}
 		}
 
-		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
+		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN) {
+			return true;
+		}
+
+		if (piece_type(piece) == KING && j == king_file - 1 && i == king_rank - 1) {
 			return true;
 		}
 		break;
@@ -1687,7 +1718,11 @@ bool in_check_alt(short color, board *b) {
 			}
 		}
 
-		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN || piece_type(piece) == KING) {
+		if (piece_type(piece) == BISHOP || piece_type(piece) == QUEEN) {
+			return true;
+		}
+
+		if (piece_type(piece) == KING && i == king_file - 1 && j == king_rank + 1) {
 			return true;
 		}
 
