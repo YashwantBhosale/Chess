@@ -15,10 +15,12 @@
 #include "engine.h"
 #include "evaluation.h"
 #include "transposition.h"
+#include "opening_book.h"
 
-//#define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-#define STARTING_FEN "7r/8/4K1k1/1Q6/8/3N4/3q4/8 w - - 0 1"
+#define STARTING_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -"
+// #define STARTING_FEN "7r/8/4K1k1/1Q6/8/3N4/3q4/8 w - - 0 1"
 ZobristTable transposition_table;
+OpeningBook opening_book;
 
 square read_square() {
 	char file;
@@ -97,12 +99,14 @@ void single_player(board *b) {
 
 	load_fen(b, STARTING_FEN);
 	init_zobrist(&transposition_table);
+	init_opening_book(&opening_book);
 
 	short turn = WHITE;
 	update_attacks(b);
 	double evaluation = 0;
 
 	double time_taken = 0;
+	load_opening_book(&opening_book, "book.csv");
 
 	while (1) {
 		clrscr();
@@ -163,18 +167,23 @@ void single_player(board *b) {
 int main() {
 	setlocale(LC_ALL, "");
 	board b;
-	//single_player(&b);
-	load_fen(&b,STARTING_FEN);
-	
-	// update opponent attacks first
-	clear_move_list(b.black_attacks);	
-	update_attacks_for_color(&b, BLACK);
-	
-	clear_move_list(b.white_attacks);
-	update_attacks_for_color(&b, WHITE);
+	single_player(&b);
 
-	filter_legal_moves(&b, WHITE);
-	print_squares_from_bb(b.black_lookup_table[0]);
-	print_movelist(b.white_legal_moves);
+	// testing opening book
+	/*
+	board b;
+	load_fen(&b, STARTING_FEN);
+	init_opening_book(&opening_book);
+	init_zobrist(&transposition_table);
+
+	load_opening_book(&opening_book, "book.csv");
+
+	//test opening book
+
+	Move m = get_book_move(&opening_book, &b, WHITE);
+	
+	wprintf(L"Book move: %c%d -> %c%d\n", m.src.file + 'a' - 1, m.src.rank, m.dest.file + 'a' - 1, m.dest.rank);
+	*/
+
 	return 0;
 }

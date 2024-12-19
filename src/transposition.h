@@ -16,6 +16,7 @@ typedef struct {
     Move best_move;
     double alpha;
     double beta;
+    bool is_book_move;
 } Entry;
 
 

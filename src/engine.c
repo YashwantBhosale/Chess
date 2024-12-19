@@ -12,6 +12,7 @@
 #include "engine.h"
 #include "move_array.h"
 #include "transposition.h"
+#include "opening_book.h"
 
 void swap(Move* a, Move* b) {
 	Move temp = *a;
@@ -48,6 +49,14 @@ evaluated_move minimax(board* b, int depth, short maximizing_player, double alph
 	if (depth == 0) {
 		_move.evaluation = get_evaluation_of_board(b);
 		_move.best_move = PLACEHOLDER_MOVE;
+		return _move;
+	}
+
+	// check opening book
+	Move book_move = get_book_move(&opening_book, b, maximizing_player);
+	if (book_move.src.file != 0) {
+		_move.evaluation = 0;
+		_move.best_move = book_move;
 		return _move;
 	}
 
