@@ -65,3 +65,26 @@ void print_movelist(MoveList *list) {
     }   
     wprintf(L"\n");
 }
+
+void clear_movelist(MoveList *list) {
+    list->top = -1;
+}
+
+Move peek_movelist(MoveList *list) {
+    if(list->top == -1) {
+        return (Move){0};
+    }
+
+    return list->moves[list->top];
+}
+void append_list(MoveList *list1, const MoveList *list2) {
+    if (!list1 || !list2) return;
+
+    if (list1->top + list2->top > MAX_GAME_MOVES - 1) {
+        // OVERFLOW!
+        return;
+    }
+
+    memcpy(&list1->moves[list1->top], list2->moves, list2->top * sizeof(Move));
+    list1->top += list2->top;
+}
