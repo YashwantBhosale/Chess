@@ -32,11 +32,26 @@ enum Pieces {
 	KING = 6
 };
 
-#define PIECE_CLR(P) P & 8 ? BLACK : WHITE
-#define PIECE_TYPE(P) P & 7
+#define WHITE_PAWN 1
+#define WHITE_KNIGHT 2
+#define WHITE_BISHOP 3
+#define WHITE_ROOK 4
+#define WHITE_QUEEN 5
+#define WHITE_KING 6
+
+#define BLACK_PAWN 9
+#define BLACK_KNIGHT 10
+#define BLACK_BISHOP 11
+#define BLACK_ROOK 12
+#define BLACK_QUEEN 13
+#define BLACK_KING 14
+
+#define PIECE_CLR(P) (P & 8) ? (BLACK) : (WHITE)
+#define PIECE_TYPE(P) (P & 7)
 
 #define WHITE_CASTLE_RIGHTS 0b00000011 // 0b000000KQ
 #define BLACK_CASTLE_RIGHTS 0b00110000 // 0b00kq0000
+#define CASTLE_RIGHTS(C, R) C ? ((R & BLACK_CASTLE_RIGHTS) >> 4) : ((R & WHITE_CASTLE_RIGHTS))
 
 #define A_FILE 0x0101010101010101ULL
 #define B_FILE 0x0202020202020202ULL

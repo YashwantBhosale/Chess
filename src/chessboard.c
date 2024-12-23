@@ -128,7 +128,7 @@ void load_fen(Board *b, const char *fen) {
                 b->black.count.queens++;
                 piece = get_id(QUEEN, BLACK);
                 b->black.queens |= place_piece(file, rank, piece, b);
-                b->white_board |= b->black.queens;
+                b->black_board |= b->black.queens;
                 break;
 			case 'K':
 				piece = get_id(KING, WHITE);

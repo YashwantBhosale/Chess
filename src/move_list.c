@@ -50,18 +50,26 @@ static inline void file_and_rank_from_index(int index, int *file, int *rank) {
     *rank = (index / 8) + 1;
 }
 
+#define EXTRACT_FILE(S) ((S & 0b111000) >> 3)
+#define EXTRACT_RANK(S) (S & 0b000111)
+
 void print_movelist(MoveList *list) {
+    if(!list || list->top == -1) return;
+
     wprintf(L"\n");
 
     for (int i = 0; i <= list->top; i++) {
         int file, rank;
-        file_and_rank_from_index(FROMSQ(list->moves[i].move), &file, &rank);
+        file = EXTRACT_FILE(FROMSQ(list->moves[i].move));
+        rank = EXTRACT_RANK(FROMSQ(list->moves[i].move));
+
         Square src = (Square){.file = file, .rank = rank};
 
-        file_and_rank_from_index(TOSQ(list->moves[i].move), &file, &rank);
+        file = EXTRACT_FILE(TOSQ(list->moves[i].move));
+        rank = EXTRACT_RANK(TOSQ(list->moves[i].move));
         Square dest = (Square){.file = file, .rank = rank};
         
-        wprintf(L"%c%d%c%d,", src.file+'a'-1, src.rank, dest.file+'a'-1, dest.rank);
+        wprintf(L"%c%d%c%d,", src.file+'a', src.rank+1, dest.file+'a', dest.rank+1);
     }   
     wprintf(L"\n");
 }

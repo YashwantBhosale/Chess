@@ -16,6 +16,6 @@ void remove_move(MoveList *list, Move move);
 void clear_movelist(MoveList *list);
 void print_movelist(MoveList *list);
 Move peek_movelist(MoveList *list);
-void append_list(MoveList *list1, MoveList *list2);
+void append_list(MoveList *list1, const MoveList *list2);
 
 #endif

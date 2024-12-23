@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
+#include <string.h>
 #include "bitboard.h"
 
 Bitboard get_bitboard(int file, int rank) {
@@ -12,35 +13,38 @@ Bitboard get_bitboard(int file, int rank) {
 	return (bitboard << index);
 }
 
+
 void get_file_and_rank_from_bitboard(Bitboard bitboard, int *file, int *rank) {
-	if (bitboard == NULL_BITBOARD) {
-		*file = 0;
-		*rank = 0;
-		return;
-	}
+    if (bitboard == NULL_BITBOARD) {
+        *file = 0;
+        *rank = 0;
+        return;
+    }
 
-	int index = __builtin_ctz(bitboard);
+    int index = ffsll(bitboard) - 1;
 
-	*file = (index % 8) + 1;
-	*rank = (index / 8) + 1;
+    *file = (index % 8) + 1;
+    *rank = (index / 8) + 1;
 }
 
 Square get_square_from_bitboard(Bitboard bitboard) {
-	int file = 0, rank = 0;
+    int file=0, rank=0;
 
-	get_file_and_rank_from_bitboard(bitboard, &file, &rank);
-	return (Square){
-	    .file = file,
-	    .rank = rank};
+    get_file_and_rank_from_bitboard(bitboard, &file, &rank);
+    return (Square) {
+        .file = file,
+        .rank = rank
+    };
 }
 
+
 void print_squares_from_bitboard(Bitboard bitboard) {
-	for (int i = 0; i < 64; i++) {
-		if (bitboard & (1ULL << i)) {
-			int file = (i % 8) + 1;
-			int rank = (i / 8) + 1;
-			wprintf(L"%c%d ", 'a' + file - 1, rank);
-		}
-	}
-	wprintf(L"\n");
+    for (int i = 0; i < 64; i++) { 
+        if (bitboard & (1ULL << i)) { 
+            int file = (i % 8) + 1;   
+            int rank = (i / 8) + 1;   
+            wprintf(L"%c%d ", 'a' + file - 1, rank);
+        }
+    }
+    wprintf(L"\n");
 }
