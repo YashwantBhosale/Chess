@@ -51,6 +51,9 @@ enum Pieces {
 
 #define WHITE_CASTLE_RIGHTS 0b00000011 // 0b000000KQ
 #define BLACK_CASTLE_RIGHTS 0b00110000 // 0b00kq0000
+#define KING_SIDE_CASTLE 2
+#define QUEEN_SIDE_CASTLE 1
+
 #define CASTLE_RIGHTS(C, R) C ? ((R & BLACK_CASTLE_RIGHTS) >> 4) : ((R & WHITE_CASTLE_RIGHTS))
 
 #define A_FILE 0x0101010101010101ULL
@@ -96,6 +99,8 @@ typedef struct {
     Bitboard white_board;
     Bitboard black_board;    
     MoveList moves;
+
+    Bitboard lookup_tables[2][7];
     bool turn;    
 } Board;
 

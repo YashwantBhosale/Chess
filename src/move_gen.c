@@ -52,6 +52,60 @@ static inline Bitboard validate_move(Bitboard move, Bitboard friendly_pieces) {
 	return (move & ~friendly_pieces);
 }
 
+// this function assumes that basic check of castling to particular side
+// is within player's right, it just confirms that all the squares between
+// king and rook are check-free and unoccupied
+static Bitboard validate_castle(Board *b, Byte color, Byte side) {
+	Bitboard king, opponent_attacks, player_board, opponent_board, move = 0ULL;
+
+	player_board = color ? b->black_board : b->white_board;
+	opponent_board = color ? b->white_board : b->black_board;
+
+	king = color ? b->black.king : b->white.king;
+	opponent_attacks = b->lookup_tables[color][0];
+
+	if (king & opponent_attacks) {
+		return 0ULL;
+	}
+
+	switch (side) {
+		case KING_SIDE_CASTLE:
+			move = king;
+			for (int i = 0; i < 2; i++) {
+				move = validate_move(move_east(move), player_board | opponent_board);
+				if (!move) {
+					return 0ULL;
+				}
+				// potential bug: pawn attacks
+				if (move & opponent_attacks) {
+					return 0ULL;
+				}
+			}
+			return move;
+		case QUEEN_SIDE_CASTLE:
+			move = king;
+			for (int i = 0; i < 2; i++) {
+				move = validate_move(move_west(move), player_board | opponent_board);
+				if (!move) {
+					return 0ULL;
+				}
+				// potential bug: pawn attacks
+				if (move & opponent_attacks) {
+					return 0ULL;
+				}
+			}
+
+			if (move_west(move) & (player_board | opponent_board))
+				return 0ULL;
+
+			return move;
+		default:
+			break;
+	}
+
+	return 0ULL;
+}
+
 typedef struct {
 	Byte piece;
 	Byte direction;
@@ -214,10 +268,11 @@ void generate_promotions(Board *b, MoveList *list, Bitboard current_pawn, Bitboa
 	add_move(b, list, current_pawn, move, color ? BLACK_QUEEN : WHITE_QUEEN);
 }
 
-void generate_pawn_attacks(Board *b, MoveList *list, Byte color) {
+Bitboard generate_pawn_attacks(Board *b, MoveList *list, Byte color) {
 	Bitboard pawns = color ? b->black.pawns : b->white.pawns;
 	Bitboard player_board = color ? b->black_board : b->white_board;
 	Bitboard opponent_board = color ? b->white_board : b->black_board;
+	Bitboard attacks = 0ULL;
 
 	while (pawns) {
 		Bitboard current_pawn = (1ULL << (ffsll(pawns) - 1));
@@ -233,6 +288,7 @@ void generate_pawn_attacks(Board *b, MoveList *list, Byte color) {
 				generate_promotions(b, list, current_pawn, move, color);
 			} else {
 				add_move(b, list, current_pawn, move, EMPTY_SQUARE);
+
 				if (color ? (current_pawn & RANK_7) : (current_pawn & RANK_2)) {
 					move = validate_move(color ? move_south(move) : move_north(move), player_board | opponent_board);
 					if (move) {
@@ -248,6 +304,7 @@ void generate_pawn_attacks(Board *b, MoveList *list, Byte color) {
 
 		for (int i = 0; i < 2; i++) {
 			move = validate_capture(captures[i], opponent_board);
+			attacks |= move;
 			if (move) {
 				if (color ? (current_pawn & RANK_2) : (current_pawn & RANK_7)) {
 					generate_promotions(b, list, current_pawn, move, color);
@@ -261,13 +318,17 @@ void generate_pawn_attacks(Board *b, MoveList *list, Byte color) {
 			move = (color ? move_south_east(current_pawn) : move_north_east(current_pawn)) ^ (player_board | opponent_board);
 			if (move == b->en_passant_square) {
 				add_move(b, list, current_pawn, move, EMPTY_SQUARE);
+				attacks |= move;
 			}
 			move = (color ? move_south_west(current_pawn) : move_north_west(current_pawn)) ^ (player_board | opponent_board);
 			if (move == b->en_passant_square) {
 				add_move(b, list, current_pawn, move, EMPTY_SQUARE);
+				attacks |= move;
 			}
 		}
 	}
+
+	return attacks;
 }
 
 #define SLIDING_MOVES(func)                                       \
@@ -276,6 +337,7 @@ void generate_pawn_attacks(Board *b, MoveList *list, Byte color) {
 		move = validate_move(func(move), player_board);           \
 		if (move) {                                               \
 			add_move(b, list, current_piece, move, EMPTY_SQUARE); \
+			attacks |= move;                                      \
 		}                                                         \
 		if (move & opponent_board) {                              \
 			add_move(b, list, current_piece, move, EMPTY_SQUARE); \
@@ -283,10 +345,11 @@ void generate_pawn_attacks(Board *b, MoveList *list, Byte color) {
 		}                                                         \
 	}
 
-void generate_bishop_attacks(Board *b, MoveList *list, Byte color) {
+Bitboard generate_bishop_attacks(Board *b, MoveList *list, Byte color) {
 	Bitboard bishops = color ? b->black.bishops : b->white.bishops;
 	Bitboard player_board = color ? b->black_board : b->white_board;
 	Bitboard opponent_board = color ? b->white_board : b->black_board;
+	Bitboard attacks = 0ULL;
 
 	while (bishops) {
 		Bitboard current_piece = (1ULL << (ffsll(bishops) - 1));
@@ -299,12 +362,15 @@ void generate_bishop_attacks(Board *b, MoveList *list, Byte color) {
 		SLIDING_MOVES(move_south_east)
 		SLIDING_MOVES(move_south_west)
 	}
+
+	return attacks;
 }
 
-void generate_rook_attacks(Board *b, MoveList *list, Byte color) {
+Bitboard generate_rook_attacks(Board *b, MoveList *list, Byte color) {
 	Bitboard rooks = color ? b->black.rooks : b->white.rooks;
 	Bitboard player_board = color ? b->black_board : b->white_board;
 	Bitboard opponent_board = color ? b->white_board : b->black_board;
+	Bitboard attacks = 0ULL;
 
 	while (rooks) {
 		Bitboard current_piece = (1ULL << (ffsll(rooks) - 1));
@@ -317,12 +383,15 @@ void generate_rook_attacks(Board *b, MoveList *list, Byte color) {
 		SLIDING_MOVES(move_east)
 		SLIDING_MOVES(move_west)
 	}
+
+	return attacks;
 }
 
-void generate_queen_attacks(Board *b, MoveList *list, Byte color) {
+Bitboard generate_queen_attacks(Board *b, MoveList *list, Byte color) {
 	Bitboard queens = color ? b->black.queens : b->white.queens;
 	Bitboard player_board = color ? b->black_board : b->white_board;
 	Bitboard opponent_board = color ? b->white_board : b->black_board;
+	Bitboard attacks = 0ULL;
 
 	while (queens) {
 		Bitboard current_piece = (1ULL << (ffsll(queens) - 1));
@@ -339,14 +408,16 @@ void generate_queen_attacks(Board *b, MoveList *list, Byte color) {
 		SLIDING_MOVES(move_south_east)
 		SLIDING_MOVES(move_south_west)
 	}
+
+	return attacks;
 }
 
-void generate_knight_attacks(Board *b, MoveList *list, Byte color) {
+Bitboard generate_knight_attacks(Board *b, MoveList *list, Byte color) {
 	Bitboard knights = color ? b->black.knights : b->white.knights;
 	Bitboard player_board = color ? b->black_board : b->white_board;
 
 	const int offsets[] = {15, 17, 10, 6, -15, -17, -10, -6};
-	Bitboard move = 0ULL;
+	Bitboard move = 0ULL, attacks = 0ULL;
 
 	while (knights) {
 		Bitboard current_piece = knights & -knights;
@@ -364,17 +435,20 @@ void generate_knight_attacks(Board *b, MoveList *list, Byte color) {
 
 			if (move) {
 				add_move(b, list, current_piece, move, EMPTY_SQUARE);
+				attacks |= move;
 			}
 		}
 	}
+
+	return attacks;
 }
 
-void generate_king_attacks(Board *b, MoveList *list, Byte color) {
+Bitboard generate_king_attacks(Board *b, MoveList *list, Byte color) {
 	Bitboard king = color ? b->black.king : b->white.king;
 	Bitboard player_board = color ? b->black_board : b->white_board;
 
 	const int offsets[] = {1, 7, 8, 9, -1, -7, -8, -9};
-	Bitboard move = 0ULL;
+	Bitboard move = 0ULL, attacks = 0ULL;
 
 	for (int i = 0; i < 8; i++) {
 		move = (offsets[i] > 0) ? (king << offsets[i]) : (king >> -offsets[i]);
@@ -386,12 +460,69 @@ void generate_king_attacks(Board *b, MoveList *list, Byte color) {
 
 		if (move) {
 			add_move(b, list, king, move, EMPTY_SQUARE);
+			attacks |= move;
 		}
 	}
 
 	Byte castle_rights = CASTLE_RIGHTS(color, b->castle_rights);
-	if(castle_rights) {
-		//
+	if (castle_rights & KING_SIDE_CASTLE) {
+		move = validate_castle(b, color, KING_SIDE_CASTLE);
+		if(move) {
+			add_move(b, list, king, move, EMPTY_SQUARE);
+			// not sure whether to add this in attack table because 
+			// i am not sure if this is "attack"
+		}
 	}
+	if (castle_rights & QUEEN_SIDE_CASTLE) {
+		move = validate_castle(b, color, QUEEN_SIDE_CASTLE);
+		if(move) {
+			add_move(b, list, king, move, EMPTY_SQUARE);
+			// not sure whether to add this in attack table because 
+			// i am not sure if this is "attack"
+		}
+	}
+	return attacks;
 }
 
+void update_attacks_for_color(Board *b, Byte color) {
+	Bitboard attacks = 0ULL;
+	MoveList main_list, temp_list;
+	init_movelist(&temp_list);
+	init_movelist(&main_list);
+
+	attacks |= b->lookup_tables[color][PAWN] = generate_pawn_attacks(b, &temp_list, color);
+	append_list(&main_list, &temp_list);
+	clear_movelist(&temp_list);
+
+	attacks |= b->lookup_tables[color][KNIGHT] = generate_knight_attacks(b, &temp_list, color);
+	append_list(&main_list, &temp_list);
+	clear_movelist(&temp_list);
+
+	attacks |= b->lookup_tables[color][BISHOP] = generate_bishop_attacks(b, &temp_list, color);
+	append_list(&main_list, &temp_list);
+	clear_movelist(&temp_list);
+
+	attacks |= b->lookup_tables[color][ROOK] = generate_rook_attacks(b, &temp_list, color);
+	append_list(&main_list, &temp_list);
+	clear_movelist(&temp_list);
+
+	attacks |= b->lookup_tables[color][QUEEN] = generate_queen_attacks(b, &temp_list, color);
+	append_list(&main_list, &temp_list);
+	clear_movelist(&temp_list);
+
+	attacks |= b->lookup_tables[color][KING] = generate_king_attacks(b, &temp_list, color);
+	append_list(&main_list, &temp_list);
+	clear_movelist(&temp_list);
+
+	b->lookup_tables[color][0] = attacks;
+}
+
+void update_attacks(Board *b, Byte color) {
+	if (color) {
+		update_attacks_for_color(b, WHITE);
+		update_attacks_for_color(b, BLACK);
+	} else {
+		update_attacks_for_color(b, BLACK);
+		update_attacks_for_color(b, WHITE);
+	}
+}
