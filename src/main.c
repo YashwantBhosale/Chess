@@ -164,6 +164,8 @@ void single_player(board *b) {
 	return;
 }
 
+
+
 int main() {
 	setlocale(LC_ALL, "");
 	board b;
