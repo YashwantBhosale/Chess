@@ -6,6 +6,8 @@
 #include <limits.h>
 #include <locale.h>
 #include <time.h>
+#include <termios.h>
+#include <unistd.h>
 
 #include "chessboard.h"
 #include "move_types.h"
@@ -216,13 +218,21 @@ void show_help() {
 	wprintf(L"press any key to continue\n");
 }
 
+void set_input_mode() {
+    struct termios tattr;
+    tcgetattr(STDIN_FILENO, &tattr);         
+    tattr.c_lflag &= ~(ICANON | ECHO);       
+    tcsetattr(STDIN_FILENO, TCSANOW, &tattr);
+}
+
 int main() {
 	setlocale(LC_ALL, "");
 	board b;
 	char mode;
+	set_input_mode();
 	while (1) {
 		show_menu();
-		scanf("%c", &mode);
+		mode = getchar();
 		if (mode == 'T' || mode == 't') {
 			two_player(&b);
 		} else if (mode == 'S' || mode == 's') {
@@ -232,8 +242,8 @@ int main() {
 			single_player(&b, level);
 		} else if (mode == 'H' || mode == 'h') {
 			show_help();
-			scanf("%c", &mode);
-			continue;
+			getchar();
+
 		} else {
 			wprintf(L"Invalid mode\n");
 		}

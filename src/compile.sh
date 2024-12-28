@@ -1,10 +1,10 @@
 #!/bin/bash
 
 if ls *.c 1> /dev/null 2>&1; then
-    gcc $(ls *.c | grep -v 'perft.c') -lm -g -o single_player
+    gcc $(ls *.c | grep -v 'perft.c') -lm -g -o chess
 
     if [ $? -eq 0 ]; then
-        echo "Compilation successful. Output file: single_player"
+        echo "Compilation successful. Output file: chess"
     else
         echo "Compilation failed."
     fi
