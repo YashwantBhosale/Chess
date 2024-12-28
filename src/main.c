@@ -53,6 +53,13 @@ void clrscr() {
 void two_player(board *b) {
 	if (!b) return;
 
+	int system = 1;  // 0 -> linux, 1 -> windows
+	#if defined(_WIN32) || defined(_WIN64)
+		system = 1;
+	#else
+		system = 0;
+	#endif
+
 	load_fen(b, STARTING_FEN);
 	short turn = WHITE;
 	update_type_board(b, turn);
@@ -67,7 +74,7 @@ void two_player(board *b) {
 	while (1) {
 		clrscr();
 
-		print_board(b, turn);
+		print_board(b, turn, system);
 		filter_legal_moves(b, turn);
 
 		if (turn == WHITE && b->white_legal_moves->move_count == 0) {
@@ -94,8 +101,15 @@ void two_player(board *b) {
 	return;
 }
 
-void single_player(board *b) {
+void single_player(board *b, int level) {
 	if (!b) return;
+
+	int system = 1;  // 0 -> linux, 1 -> windows
+	#if defined(_WIN32) || defined(_WIN64)
+		system = 1;
+	#else
+		system = 0;
+	#endif
 
 	load_fen(b, STARTING_FEN);
 	init_zobrist(&transposition_table);
@@ -117,7 +131,7 @@ void single_player(board *b) {
 			wprintf(L"Time taken for search: %.2lfms\n", time_taken);
 		}
 
-		print_board(b, BLACK);
+		print_board(b, BLACK, system);
 		filter_legal_moves(b, turn);
 		if (turn == WHITE && b->white_legal_moves->move_count == 0) {
 			wprintf(L"Black wins\n");
@@ -145,7 +159,7 @@ void single_player(board *b) {
 			memcpy(lookup_table_backup, turn == WHITE ? b->white_lookup_table : b->black_lookup_table, sizeof(lookup_table_backup));
 
 			clock_t start = clock();
-			evaluated_move eval = minimax(b, 4, turn, INT_MIN, INT_MAX);
+			evaluated_move eval = minimax(b, 4 + level, turn, INT_MIN, INT_MAX);
 			clock_t end = clock();
 
 			time_taken = ((double)(end - start) * 1000.0) / CLOCKS_PER_SEC;
@@ -164,12 +178,66 @@ void single_player(board *b) {
 	return;
 }
 
+void show_menu() {
+	/*
 
+	     ██████╗██╗  ██╗███████╗███████╗███████╗
+	    ██╔════╝██║  ██║██╔════╝██╔════╝██╔════╝
+	    ██║     ███████║█████╗  ███████╗███████╗
+	    ██║     ██╔══██║██╔══╝  ╚════██║╚════██║
+	    ╚██████╗██║  ██║███████╗███████║███████║
+	     ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝
+	*/
+	clrscr();
+	wprintf(L"\n");
+	wprintf(L" ██████╗██╗  ██╗███████╗███████╗███████╗\n");
+	wprintf(L"██╔════╝██║  ██║██╔════╝██╔════╝██╔════╝\n");
+	wprintf(L"██║     ███████║█████╗  ███████╗███████╗\n");
+	wprintf(L"██║     ██╔══██║██╔══╝  ╚════██║╚════██║\n");
+	wprintf(L"╚██████╗██║  ██║███████╗███████║███████║\n");
+	wprintf(L" ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝\n");
+	wprintf(L"\n");
+	wprintf(L"\n");
+
+	wprintf(L"Welcome to the chess program CLI\n");
+	wprintf(L"Please choose mode\n");
+	wprintf(L"press T for two player mode\n");
+	wprintf(L"press S for single player mode\n");
+	wprintf(L"press H for help\n");
+	wprintf(L"press ctrl+c to exit\n");
+}
+
+void show_help() {
+	wprintf(L"How to play:\n");
+	wprintf(L"Enter the source square and destination square in the format <file><rank> <file><rank>\n");
+	wprintf(L"Example: a2a4\n");
+	wprintf(L"Press enter after entering the move\n");
+
+	wprintf(L"press any key to continue\n");
+}
 
 int main() {
 	setlocale(LC_ALL, "");
 	board b;
-	single_player(&b);
+	char mode;
+	while (1) {
+		show_menu();
+		scanf("%c", &mode);
+		if (mode == 'T' || mode == 't') {
+			two_player(&b);
+		} else if (mode == 'S' || mode == 's') {
+			int level = 1;
+			wprintf(L"Enter level of difficulty (1-3): ");
+			scanf("%d", &level);
+			single_player(&b, level);
+		} else if (mode == 'H' || mode == 'h') {
+			show_help();
+			scanf("%c", &mode);
+			continue;
+		} else {
+			wprintf(L"Invalid mode\n");
+		}
+	}
 
 	// testing opening book
 	/*
@@ -183,7 +251,7 @@ int main() {
 	//test opening book
 
 	Move m = get_book_move(&opening_book, &b, WHITE);
-	
+
 	wprintf(L"Book move: %c%d -> %c%d\n", m.src.file + 'a' - 1, m.src.rank, m.dest.file + 'a' - 1, m.dest.rank);
 	*/
 

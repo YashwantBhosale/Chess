@@ -501,7 +501,7 @@ void print_captured_pieces(board *b) {
 }
 
 // Function to print the chessboard
-void print_board(board *b, short turn) {
+void print_board(board *b, short turn, short system) {
 	print_captured_pieces(b);
 	// wchar_t white_pieces[] = {L'P', L'N', L'B', L'R', L'Q', L'K'};
 	// wchar_t black_pieces[] = {L'p', L'n', L'b', L'r', L'q', L'k'};

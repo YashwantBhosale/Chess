@@ -136,7 +136,7 @@ unsigned long long perfit(int depth, short turn, board* b, const int max_depth) 
 			wprintf(L"%d%d->%d%d\n", b->moves->top->move.src.file, b->moves->top->move.src.rank, b->moves->top->move.dest.file, b->moves->top->move.dest.rank);
 
 			// Additional debug information
-			print_board(b, turn);
+			print_board(b, turn, 1);
 			print_moves(b->black_board);
 			wprintf(L"\nwhite_board = ");
 			print_moves(b->white_board);

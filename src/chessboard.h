@@ -228,7 +228,7 @@ typedef struct {
 // functions for chessboard
 void init_board(board *b);
 void init_pieces(pieces *type);
-void print_board(board *b, short turn);
+void print_board(board *b, short turn, short system);
 void load_fen(board *b, char *fen);
 
 
