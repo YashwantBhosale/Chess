@@ -29,12 +29,13 @@ typedef struct {
     1. 12 pieces will have unique keys for each square.
 */
 
-#define TABLE_SIZE 10000000
+#define TABLE_SIZE 1048576
 typedef struct zobrist {
     unsigned long long keys[12][64];
     unsigned long long white_to_move;
     unsigned long long castling[4];
     unsigned long long en_passant;
+    unsigned long long num_entries;
     Entry table[TABLE_SIZE];
 } ZobristTable;
 
