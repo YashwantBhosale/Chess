@@ -125,7 +125,7 @@ void single_player(board *b, int level) {
 	load_opening_book(&opening_book, "book.csv");
 
 	while (1) {
-		clrscr();
+		// clrscr();
 		display_evaluation(evaluation);
 
 		if (turn == BLACK && b->moves->top) {
@@ -161,7 +161,7 @@ void single_player(board *b, int level) {
 			memcpy(lookup_table_backup, turn == WHITE ? b->white_lookup_table : b->black_lookup_table, sizeof(lookup_table_backup));
 
 			clock_t start = clock();
-			evaluated_move eval = minimax(b, 4 + level, turn, INT_MIN, INT_MAX);
+			evaluated_move eval = minimax(b, 3 + level, turn, INT_MIN, INT_MAX);
 			clock_t end = clock();
 
 			time_taken = ((double)(end - start) * 1000.0) / CLOCKS_PER_SEC;
@@ -171,7 +171,11 @@ void single_player(board *b, int level) {
 			wprintf(L"Best move: ");
 			wprintf(L"%c%d -> %c%d\n", eval.best_move.src.file + 'a' - 1, eval.best_move.src.rank, eval.best_move.dest.file + 'a' - 1, eval.best_move.dest.rank);
 
-			make_move(eval.best_move.src, eval.best_move.dest, turn, b, true, eval.best_move.type);
+			int status = make_move(eval.best_move.src, eval.best_move.dest, turn, b, true, eval.best_move.type);
+			if (status == INVALID_MOVE) {
+				wprintf(L"invalid move\n");
+				continue;
+			}
 		}
 
 		update_attacks(b);
@@ -225,6 +229,13 @@ void set_input_mode() {
     tcsetattr(STDIN_FILENO, TCSANOW, &tattr);
 }
 
+void reset_input_mode() {
+	struct termios tattr;
+	tcgetattr(STDIN_FILENO, &tattr);
+	tattr.c_lflag |= (ICANON | ECHO);
+	tcsetattr(STDIN_FILENO, TCSANOW, &tattr);
+}
+
 int main() {
 	setlocale(LC_ALL, "");
 	board b;
@@ -234,16 +245,17 @@ int main() {
 		show_menu();
 		mode = getchar();
 		if (mode == 'T' || mode == 't') {
+			reset_input_mode();
 			two_player(&b);
 		} else if (mode == 'S' || mode == 's') {
 			int level = 1;
+			reset_input_mode();
 			wprintf(L"Enter level of difficulty (1-3): ");
 			scanf("%d", &level);
 			single_player(&b, level);
 		} else if (mode == 'H' || mode == 'h') {
 			show_help();
 			getchar();
-
 		} else {
 			wprintf(L"Invalid mode\n");
 		}
